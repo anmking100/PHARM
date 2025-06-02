@@ -188,11 +188,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-grow h-full">
-      <div className="w-2/5 bg-black text-white p-6 flex flex-col space-y-4">
-        {/* Content removed as per request, version/copyright now global */}
-      </div>
-
-      <div className="w-3/5 bg-background text-foreground p-6 overflow-y-auto">
+      <div className="w-full bg-background text-foreground p-6 overflow-y-auto">
         <div className="mb-6">
           <h2 className="text-3xl font-semibold border-b border-border pb-2 text-foreground">RxFlow Assist</h2>
           <p className="text-muted-foreground mt-2">
