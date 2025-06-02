@@ -129,7 +129,7 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserPlus className="mr-2 h-5 w-5" /> 
-            Create New User (Conceptual)
+            Create New User
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -179,7 +179,7 @@ export default function AdminPage() {
             </div>
 
             <div className="space-y-4 pt-2">
-              <Label className="font-medium">Permissions (Conceptual)</Label>
+              <Label className="font-medium">Permissions</Label>
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="canUploadDocs" 
