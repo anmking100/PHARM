@@ -6,7 +6,7 @@ import type { NewUserFormData, UserRole } from '@/lib/types';
 // (e.g., dedicated API routes, Firebase Functions).
 // Directly calling it from a Server Action invoked by a non-Firebase-authenticated admin
 // without additional security (like a secret token check) is NOT recommended for production.
-import admin from '@/lib/firebase/admin'; // Conceptual import for Firebase Admin SDK
+import adminInstance from '@/lib/firebase/admin'; // Renamed for clarity
 
 export async function createUserWithRole(
   userData: NewUserFormData,
@@ -25,8 +25,6 @@ export async function createUserWithRole(
     return { success: false, message: 'Password must be at least 6 characters.' };
   }
 
-  // CONCEPTUAL FIREBASE ADMIN SDK USAGE
-  // In a real, secure backend environment, you would do the following:
   try {
     // --- !!! SECURITY WARNING !!! ---
     // The following Admin SDK calls should be in a secure backend environment,
@@ -35,34 +33,23 @@ export async function createUserWithRole(
     // if used directly, e.g. by checking a secret passed from the client or ensuring
     // the caller (the hardcoded admin) has a session that this action can verify.
 
-    if (!admin.apps.length) {
-        // This is a fallback if admin SDK wasn't initialized elsewhere,
-        // but ideally it's initialized once at app/server startup.
-        // This re-initialization attempt here might not always work as expected in all serverless environments.
-        console.warn('[AdminAction] Firebase Admin SDK not initialized. Attempting re-init (may not be suitable for all environments).');
-        // admin.initializeApp(); // Potentially re-initialize if needed and safe.
-                               // For now, we assume it's initialized by admin.ts import.
-                               // If it's not, admin.auth() will throw.
-    }
-    
-    // Check if admin SDK is actually available
-    if (!admin.auth) {
-      console.error('[AdminAction] Firebase Admin SDK (admin.auth) is not available. User creation will be purely conceptual.');
+    // Check if Admin SDK is initialized by verifying if any apps are initialized
+    if (!adminInstance.apps.length) {
+      console.error('[AdminAction] Firebase Admin SDK is not initialized (no apps found). User creation will be purely conceptual. Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly and the server has restarted.');
       // Fallback to conceptual creation if Admin SDK isn't working
       const mockUserId = `mock_user_${Date.now()}`;
-      console.log(`Conceptual user ${userData.email} with role ${userData.role} created with ID: ${mockUserId}. (Admin SDK not available)`);
+      console.log(`Conceptual user ${userData.email} with role ${userData.role} created with ID: ${mockUserId}. (Admin SDK not initialized)`);
       return { 
         success: true, 
-        message: `User ${userData.email} (${userData.role}) conceptually created (Admin SDK not available).`,
+        message: `User ${userData.email} (${userData.role}) conceptually created (Admin SDK not initialized).`,
         userId: mockUserId,
         email: userData.email,
         role: userData.role
       };
     }
 
-
     console.log('[AdminAction] Attempting to create user with Firebase Admin SDK...');
-    const userRecord = await admin.auth().createUser({
+    const userRecord = await adminInstance.auth().createUser({
       email: userData.email,
       password: passwordMaybe,
       emailVerified: false, // Or true, depending on your flow
@@ -71,11 +58,11 @@ export async function createUserWithRole(
     console.log('[AdminAction] Successfully created new user with Firebase Admin SDK:', userRecord.uid);
 
     // Set custom claims for the role
-    await admin.auth().setCustomUserClaims(userRecord.uid, { role: userData.role, admin: userData.role === 'admin' });
+    await adminInstance.auth().setCustomUserClaims(userRecord.uid, { role: userData.role, admin: userData.role === 'admin' });
     console.log('[AdminAction] Successfully set custom claims for user:', userRecord.uid, { role: userData.role });
 
     // Optionally, store additional user details in Firestore if needed (e.g., name, etc.)
-    // await admin.firestore().collection('users').doc(userRecord.uid).set({ email: userData.email, role: userData.role });
+    // await adminInstance.firestore().collection('users').doc(userRecord.uid).set({ email: userData.email, role: userData.role });
 
     return { 
       success: true, 
@@ -92,13 +79,12 @@ export async function createUserWithRole(
       errorMessage = 'This email address is already in use.';
     } else if (error.code === 'auth/invalid-password') {
       errorMessage = 'Password must be at least 6 characters long.';
-    }
-    // Check for admin SDK initialization errors
-    if (error.message && error.message.includes("Firebase App named '[DEFAULT]' already exists")) {
-        errorMessage = "Firebase Admin SDK conflict or already initialized. User creation failed.";
-    } else if (error.message && error.message.includes("Must initialize app")) {
+    } else if (error.message && error.message.includes("The default Firebase app does not exist")) {
+        errorMessage = "Firebase Admin SDK not properly initialized. User creation failed. Check server logs for initialization errors and ensure GOOGLE_APPLICATION_CREDENTIALS is set.";
+    } else if (error.message && error.message.includes("Must initialize app")) { // Should be caught by adminInstance.apps.length check
         errorMessage = "Firebase Admin SDK not initialized. User creation failed.";
     }
+
 
     return { 
       success: false, 
