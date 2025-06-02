@@ -2,19 +2,52 @@
 'use server';
 
 import type { NewUserFormData, UserRole, ConceptualUser } from '@/lib/types';
-import { HARDCODED_USERS_FOR_ADMIN_VIEW } from '../login/actions';
+
+// Define HARDCODED_USERS_FOR_ADMIN_VIEW directly here for use in getSystemUsers
+// This avoids exporting it from a 'use server' context in login/actions.ts
+export const HARDCODED_USERS_FOR_ADMIN_VIEW: Record<string, { password?: string, role: UserRole }> = {
+  'admin@example.com': { password: 'password123', role: 'admin' },
+  'pharmacist@example.com': { password: 'password123', role: 'pharmacist' },
+  'technician@example.com': { password: 'password123', role: 'technician' },
+};
+
 
 export async function getSystemUsers(): Promise<ConceptualUser[]> {
   return Object.entries(HARDCODED_USERS_FOR_ADMIN_VIEW).map(([email, data]) => {
     const isPrivileged = data.role === 'admin' || data.role === 'pharmacist';
+    const canUpload = data.role === 'admin' || data.role === 'pharmacist' || data.role === 'technician';
+    
+    // Default permissions based on role
+    let defaultCanUploadDocs = false;
+    let defaultCanReviewDocs = false;
+    let defaultCanApproveMedication = false;
+
+    switch (data.role) {
+        case 'admin':
+            defaultCanUploadDocs = true;
+            defaultCanReviewDocs = true;
+            defaultCanApproveMedication = true;
+            break;
+        case 'pharmacist':
+            defaultCanUploadDocs = true;
+            defaultCanReviewDocs = true;
+            defaultCanApproveMedication = true;
+            break;
+        case 'technician':
+            defaultCanUploadDocs = true;
+            defaultCanReviewDocs = false; 
+            defaultCanApproveMedication = false;
+            break;
+    }
+    
     return {
       id: email, // Use email as ID for hardcoded users
       email: email,
       role: data.role,
       password: data.password, // Store password conceptually, not displayed
-      canUploadDocs: data.role === 'admin' || data.role === 'pharmacist' || data.role === 'technician', // Technicians can also upload
-      canReviewDocs: isPrivileged,
-      canApproveMedication: isPrivileged,
+      canUploadDocs: defaultCanUploadDocs,
+      canReviewDocs: defaultCanReviewDocs,
+      canApproveMedication: defaultCanApproveMedication,
     };
   });
 }
@@ -71,4 +104,3 @@ export async function createUserWithRole(
     };
   }
 }
-

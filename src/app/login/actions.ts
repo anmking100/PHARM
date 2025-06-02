@@ -15,15 +15,12 @@ interface SignInResult {
   email?: string;
 }
 
-// Export for use in admin panel listing and for internal use
-export const HARDCODED_USERS_FOR_ADMIN_VIEW: Record<string, { password?: string, role: UserRole }> = {
+// Internal constant for login logic, not exported.
+const HARDCODED_USERS: Record<string, { password?: string, role: UserRole }> = {
   'admin@example.com': { password: 'password123', role: 'admin' },
   'pharmacist@example.com': { password: 'password123', role: 'pharmacist' },
   'technician@example.com': { password: 'password123', role: 'technician' },
 };
-
-// Internal alias for clarity within this file if preferred, or just use the exported name directly
-const HARDCODED_USERS = HARDCODED_USERS_FOR_ADMIN_VIEW;
 
 export async function signInUser(credentials: SignInCredentials): Promise<SignInResult> {
   console.log('[signInUser Action] Attempting to sign in user:', credentials.email);
@@ -43,4 +40,3 @@ export async function signInUser(credentials: SignInCredentials): Promise<SignIn
   console.log('[signInUser Action] Invalid credentials or user not found in hardcoded list.');
   return { success: false, error: 'Invalid credentials.' };
 }
-
