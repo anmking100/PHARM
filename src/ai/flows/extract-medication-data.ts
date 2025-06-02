@@ -21,6 +21,8 @@ const ExtractMedicationDataInputSchema = z.object({
 });
 export type ExtractMedicationDataInput = z.infer<typeof ExtractMedicationDataInputSchema>;
 
+// This is the external contract for the flow's output.
+// It includes fields that will be deterministically set by the flow.
 const ExtractMedicationDataOutputSchema = z.object({
   patientName: z.string().describe('The name of the patient.').optional().default(''),
   medicationName: z.string().describe('The name of the medication.').optional().default(''),
@@ -28,14 +30,25 @@ const ExtractMedicationDataOutputSchema = z.object({
   frequency: z.string().describe('The frequency of the medication.').optional().default(''),
   prescribingDoctor: z.string().describe('The name of the prescribing doctor.').optional().default(''),
   isHandwritten: z.boolean().describe('Whether the prescription is handwritten.').optional().default(false),
-  status: z.custom<MedicationStatus>().describe('The current status of the prescription.').optional().default('pending_review'),
-  parsedAt: z.string().datetime().describe('The ISO timestamp when the document was successfully parsed.').optional(),
+  status: z.custom<MedicationStatus>().describe('The current status of the prescription.').default('pending_review'),
+  parsedAt: z.string().datetime().describe('The ISO timestamp when the document was successfully parsed.'),
 });
 export type ExtractMedicationDataOutput = z.infer<typeof ExtractMedicationDataOutputSchema>;
 
 export async function extractMedicationData(input: ExtractMedicationDataInput): Promise<ExtractMedicationDataOutput> {
   return extractMedicationDataFlow(input);
 }
+
+// Internal schema for what we expect the AI model to return.
+// `parsedAt` and `status` are excluded as the flow will set them.
+const AiModelResponseSchema = z.object({
+    patientName: z.string().describe('The name of the patient.').optional().default(''),
+    medicationName: z.string().describe('The name of the medication.').optional().default(''),
+    dosage: z.string().describe('The dosage of the medication.').optional().default(''),
+    frequency: z.string().describe('The frequency of the medication.').optional().default(''),
+    prescribingDoctor: z.string().describe('The name of the prescribing doctor.').optional().default(''),
+    isHandwritten: z.boolean().describe('Whether the prescription is handwritten.').optional().default(false),
+});
 
 const shouldInterpretHandwritingTool = ai.defineTool({
     name: 'shouldInterpretHandwriting',
@@ -54,7 +67,7 @@ const shouldInterpretHandwritingTool = ai.defineTool({
 const extractMedicationDataPrompt = ai.definePrompt({
   name: 'extractMedicationDataPrompt',
   input: {schema: ExtractMedicationDataInputSchema},
-  output: {schema: ExtractMedicationDataOutputSchema},
+  output: {schema: AiModelResponseSchema}, // AI's direct output validated against this
   tools: [shouldInterpretHandwritingTool],
   prompt: `You are an expert pharmacist assistant whose job is to extract structured information from faxes of medication prescriptions. 
 
@@ -67,12 +80,11 @@ const extractMedicationDataPrompt = ai.definePrompt({
   - Prescribing Doctor: The name of the doctor who prescribed the medication.
 
   Based on the image, determine if the prescription appears to be handwritten. Use the 'shouldInterpretHandwriting' tool if needed to determine if the fax contains handwriting.
-  Set the initial status of the prescription to 'pending_review'.
-  Also, record the current timestamp (in ISO format) for when this parsing occurs in the 'parsedAt' field.
-
+  
   Here is the fax image: {{media url=faxDataUri}}
 
-  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields. Ensure 'status' is set to 'pending_review' and 'parsedAt' is set to the current ISO timestamp.
+  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields.
+  Do NOT include 'status' or 'parsedAt' fields in your JSON response, as these will be handled by the system.
   `,
 });
 
@@ -80,13 +92,14 @@ const extractMedicationDataFlow = ai.defineFlow(
   {
     name: 'extractMedicationDataFlow',
     inputSchema: ExtractMedicationDataInputSchema,
-    outputSchema: ExtractMedicationDataOutputSchema,
+    outputSchema: ExtractMedicationDataOutputSchema, // Flow's final output adheres to this
   },
   async input => {
     const currentTimestamp = new Date().toISOString();
-    const {output} = await extractMedicationDataPrompt(input);
-    if (!output) {
-      console.error("AI prompt returned null output. Returning default structure.");
+    const {output: aiModelOutput} = await extractMedicationDataPrompt(input);
+
+    if (!aiModelOutput) {
+      console.error("AI prompt returned null output. Returning default structure matching ExtractMedicationDataOutputSchema.");
       return {
         patientName: '',
         medicationName: '',
@@ -94,13 +107,16 @@ const extractMedicationDataFlow = ai.defineFlow(
         frequency: '',
         prescribingDoctor: '',
         isHandwritten: false,
-        status: 'pending_review',
-        parsedAt: currentTimestamp,
+        status: 'pending_review', // Deterministically set
+        parsedAt: currentTimestamp,  // Deterministically set
       };
     }
-    // Ensure parsedAt is always set to the server-generated currentTimestamp for schema compliance,
-    // and status defaults to 'pending_review' if not provided by AI.
-    return {...output, status: output.status || 'pending_review', parsedAt: currentTimestamp };
+    
+    // Combine AI output with deterministically set fields
+    return {
+      ...aiModelOutput,
+      status: 'pending_review', // Deterministically set
+      parsedAt: currentTimestamp,  // Deterministically set
+    };
   }
 );
-
