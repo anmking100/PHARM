@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,14 +20,17 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth(); // Destructure isAdmin
 
   useEffect(() => {
+    // This effect handles redirection if the user is successfully logged in (user object exists)
+    // AND authentication loading is complete.
     if (!authLoading && user) {
       const redirectUrl = searchParams.get('redirect') || '/';
+      console.log(`[LoginPage] useEffect redirect check. User: ${user?.email}, AuthLoading: ${authLoading}, IsAdmin: ${isAdmin}. Redirecting to: ${redirectUrl}`);
       router.push(redirectUrl);
     }
-  }, [user, authLoading, router, searchParams]);
+  }, [user, authLoading, router, searchParams, isAdmin]); // Added isAdmin to dependency array
 
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -39,8 +43,7 @@ export default function LoginPage() {
           title: 'Login Successful',
           description: 'Welcome back!',
         });
-        const redirectUrl = searchParams.get('redirect') || '/';
-        router.push(redirectUrl);
+        // Redirection will be handled by the useEffect above once auth state updates
       } else {
         let description = result.error || 'Invalid email or password.';
         if (result.errorCode === 'auth/invalid-credential') {
@@ -63,7 +66,10 @@ export default function LoginPage() {
     }
   };
   
+  // This block handles the case where the user is ALREADY logged in when they visit /login,
+  // or if auth is still loading initially.
   if (authLoading || (!authLoading && user)) {
+    console.log(`[LoginPage] Initial loading/redirect block. User: ${user?.email}, AuthLoading: ${authLoading}, IsAdmin: ${isAdmin}`);
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -72,6 +78,8 @@ export default function LoginPage() {
     );
   }
 
+  // If here, authLoading is false and user is null, so show the login form.
+  console.log(`[LoginPage] Rendering login form. User: ${user?.email}, AuthLoading: ${authLoading}, IsAdmin: ${isAdmin}`);
   return (
     <div className="flex items-center justify-center py-12">
       <Card className="w-full max-w-md shadow-xl">
