@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, type FormEvent, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,12 +10,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
-import { signInUser } from './actions';
+import { signInUser } from './actions'; // Server action for hardcoded admin
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth as firebaseAuthClient } from '@/lib/firebase/client';
 import { useToast } from '@/hooks/use-toast';
+
+const HARDCODED_ADMIN_EMAIL = 'admin@example.com';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, login, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const { user, isAdmin, loading: authLoading, loginHardcodedAdmin } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
@@ -24,11 +29,14 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('[LoginPage] User already logged in, redirecting to /');
-      router.replace('/');
+    console.log('[LoginPage] useEffect - User:', user?.email, 'IsAdmin:', isAdmin, 'AuthLoading:', authLoading);
+    if (!authLoading && user) {
+      const redirectUrl = searchParams.get('redirect') || (isAdmin ? '/admin' : '/');
+      console.log(`[LoginPage] User logged in (${user.email}, admin: ${isAdmin}). Redirecting to ${redirectUrl}`);
+      router.replace(redirectUrl);
     }
-  }, [user, authLoading, router]);
+  }, [user, isAdmin, authLoading, router, searchParams]);
+
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -42,36 +50,49 @@ export default function LoginPage() {
     }
 
     try {
-      const result = await signInUser({ email, password });
-      if (result.success && result.user) {
-        login(result.user); // Update AuthContext with the logged-in user
-        toast({
-          title: 'Login Successful',
-          description: 'Welcome back!',
-        });
-        router.push('/'); // Redirect to home page or dashboard
+      if (email.toLowerCase() === HARDCODED_ADMIN_EMAIL.toLowerCase()) {
+        // Attempt hardcoded admin login via AuthContext
+        const result = await loginHardcodedAdmin(email, password);
+        if (result.success) {
+          toast({ title: 'Admin Login Successful', description: 'Welcome back, Admin!' });
+          // useEffect will handle redirect
+        } else {
+          setError(result.error || 'Invalid admin credentials.');
+          toast({ variant: 'destructive', title: 'Admin Login Failed', description: result.error });
+        }
       } else {
-        setError(result.error || 'Invalid email or password.');
-        toast({
-          variant: 'destructive',
-          title: 'Login Failed',
-          description: result.error || 'Invalid email or password.',
-        });
+        // Attempt Firebase login for regular users
+        await signInWithEmailAndPassword(firebaseAuthClient, email, password);
+        // onAuthStateChanged in AuthContext will pick this up and update user state
+        toast({ title: 'Login Successful', description: 'Welcome back!' });
+        // useEffect will handle redirect
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login page caught error:', err);
-      setError('An unexpected error occurred. Please try again.');
-      toast({
-        variant: 'destructive',
-        title: 'Login Error',
-        description: 'An unexpected error occurred.',
-      });
+      let message = 'An unexpected error occurred. Please try again.';
+      if (err.code) {
+        switch (err.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            message = 'Invalid email or password.';
+            break;
+          case 'auth/invalid-email':
+            message = 'Invalid email format.';
+            break;
+          default:
+            message = err.message || message;
+        }
+      }
+      setError(message);
+      toast({ variant: 'destructive', title: 'Login Failed', description: message });
     } finally {
       setIsSubmitting(false);
     }
   };
   
-  if (authLoading || user) {
+  if (authLoading && !user) {
+    console.log('[LoginPage] Render: Auth loading, showing spinner.');
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -79,17 +100,29 @@ export default function LoginPage() {
       </div>
     );
   }
+  
+  // If user becomes available while still on login page (e.g. due to fast redirect issue), show loading
+  if (user) {
+     console.log('[LoginPage] Render: User is already defined, showing spinner for redirect.');
+     return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-24">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Finalizing login...</p>
+      </div>
+    );
+  }
 
+  console.log('[LoginPage] Render: Showing login form.');
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader>
           <CardTitle className="text-2xl font-bold tracking-tight text-center flex items-center justify-center gap-2">
             <LogIn className="h-6 w-6 text-primary" />
-            Admin Login
+            Login
           </CardTitle>
           <CardDescription className="text-center">
-            Enter your credentials to access the admin panel.
+            Enter your credentials to access your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,7 +139,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="user@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -136,7 +169,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
         <CardFooter className="text-center text-xs text-muted-foreground">
-          <p>Use admin@example.com and password123 to log in.</p>
+          <p>Admin: admin@example.com / password123</p>
         </CardFooter>
       </Card>
     </div>

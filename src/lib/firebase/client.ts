@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
-// getAuth removed: import { getAuth } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -19,7 +19,6 @@ if (!getApps().length) {
   app = getApp();
 }
 
-// auth export removed
-// const auth = getAuth(app);
+const auth = getAuth(app);
 
-export { app }; // only export app
+export { app, auth };

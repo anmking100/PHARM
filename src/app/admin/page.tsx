@@ -9,53 +9,66 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithRole } from "./actions"; // This remains conceptual
-import type { AppUser, UserRole, NewUserFormData } from "@/lib/types";
+import { createUserWithRole } from "./actions";
+import type { AppUser as AppUserTypeFromContext, UserRole } from "@/lib/types"; // Renamed to avoid conflict
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
+// Local state for users displayed on this page, AppUser for this component
+interface DisplayUser {
+  id: string;
+  email: string;
+  role: UserRole;
+}
 
-const initialUsers: AppUser[] = [
-  { id: '1', email: 'admin@example.com', role: 'admin' },
-  { id: '2', email: 'pharmacist.jane@example.com', role: 'pharmacist' },
-  { id: '3', email: 'tech.joe@example.com', role: 'technician' },
+const initialUsers: DisplayUser[] = [
+  // This list is now just for initial display IF no Firebase users are loaded.
+  // Or, it can be cleared if we only want to show users created via the form.
 ];
 
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user: authUser, isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [users, setUsers] = useState<AppUser[]>(initialUsers);
+  // This state holds users *displayed* on the admin page.
+  // It can be a mix of mock users and users conceptually created via the form.
+  const [displayedUsers, setDisplayedUsers] = useState<DisplayUser[]>(initialUsers);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
-  const [newUserForm, setNewUserForm] = useState<NewUserFormData & { password?: string }>({
+  const [newUserForm, setNewUserForm] = useState<{email: string; password?: string; role: UserRole }>({
     email: '',
-    password: '',
+    password: '', // Add password field
     role: 'technician',
   });
 
   useEffect(() => {
-    console.log('[AdminPage] Auth state check. AuthLoading:', authLoading, 'User:', user?.email, 'IsAdmin:', isAdmin);
-    if (!authLoading && !user) {
-      console.log('[AdminPage] Not logged in, redirecting to /login.');
-      router.replace('/login?redirect=/admin');
-    } else if (!authLoading && user && !isAdmin) {
-      console.log('[AdminPage] Logged in but not admin, redirecting to /.');
-      router.replace('/');
-      toast({
-        variant: "destructive",
-        title: "Access Denied",
-        description: "You do not have permission to access the admin panel.",
-      });
+    console.log('[AdminPage] Auth state check. AuthLoading:', authLoading, 'AuthUser:', authUser?.email, 'IsAdmin:', isAdmin);
+    if (!authLoading) {
+      if (!authUser || !isAdmin) {
+        console.log('[AdminPage] Not admin or not logged in, redirecting to /login.');
+        router.replace('/login?redirect=/admin');
+        if (authUser && !isAdmin) { // only toast if logged in but not admin
+            toast({
+                variant: "destructive",
+                title: "Access Denied",
+                description: "You do not have permission to access the admin panel.",
+            });
+        }
+      } else {
+        console.log('[AdminPage] Admin access confirmed.');
+        // Optionally, here you could fetch a list of actual Firebase users
+        // using a server action that calls Firebase Admin SDK.
+        // For now, displayedUsers remains local or mock.
+      }
     }
-  }, [user, isAdmin, authLoading, router, toast]);
+  }, [authUser, isAdmin, authLoading, router, toast]);
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -69,15 +82,17 @@ export default function AdminPage() {
   const handleCreateUserSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!newUserForm.email || !newUserForm.password || !newUserForm.role) {
-      toast({ variant: "destructive", title: "Missing Fields", description: "Please fill in all fields." });
+      toast({ variant: "destructive", title: "Missing Fields", description: "Please fill in all email, password, and role fields." });
       return;
     }
     setIsSubmittingUser(true);
     try {
+      // Pass an empty string for password if not provided, but action validates
       const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
-      if (result.success && result.userId) {
-        setUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: newUserForm.email, role: newUserForm.role }]);
-        toast({ title: "User Created (Conceptual)", description: result.message });
+      if (result.success && result.userId && result.email && result.role) {
+        // Add to local display list. In a real app, you'd re-fetch the user list from Firebase.
+        setDisplayedUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: result.email as string, role: result.role as UserRole }]);
+        toast({ title: "User Action", description: result.message });
         setIsCreateUserDialogOpen(false);
         setNewUserForm({ email: '', password: '', role: 'technician' }); 
       } else {
@@ -100,10 +115,8 @@ export default function AdminPage() {
     );
   }
 
-  if (!user || !isAdmin) {
-     console.log('[AdminPage] User not authenticated or not admin, showing access denied or redirecting.');
-    // This state should ideally be handled by the useEffect redirect,
-    // but as a fallback, show a message or null.
+  if (!authUser || !isAdmin) {
+     console.log('[AdminPage] User not authenticated as admin, showing access denied or redirecting.');
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
             <Alert variant="destructive" className="max-w-md">
@@ -117,7 +130,7 @@ export default function AdminPage() {
     );
   }
 
-  console.log('[AdminPage] Rendering admin dashboard content.');
+  console.log('[AdminPage] Rendering admin dashboard content for:', authUser.email);
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -126,7 +139,7 @@ export default function AdminPage() {
                 <ShieldCheck className="h-8 w-8 text-primary" />
                 Admin Dashboard
             </h1>
-            <p className="text-muted-foreground">Manage users, roles, and application settings.</p>
+            <p className="text-muted-foreground">Manage users and roles. User creation attempts to use Firebase Admin SDK.</p>
         </div>
       </div>
 
@@ -137,7 +150,7 @@ export default function AdminPage() {
               <Users className="h-5 w-5 text-primary" />
               User Management
             </CardTitle>
-            <CardDescription>View, add, and manage user roles. Current user list is mock data.</CardDescription>
+            <CardDescription>View, add, and manage user roles. User list is local to this session.</CardDescription>
           </div>
           <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
             <DialogTrigger asChild>
@@ -151,7 +164,7 @@ export default function AdminPage() {
                   <UserPlus className="h-5 w-5" />Create New User
                 </DialogTitle>
                 <DialogDescription>
-                  Fill in the details to add a new user and assign them a role.
+                  Fill in the details to add a new user and assign them a role. This will attempt to create a Firebase user.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateUserSubmit}>
@@ -166,7 +179,7 @@ export default function AdminPage() {
                     <Label htmlFor="password" className="text-right">
                       Password
                     </Label>
-                    <Input id="password" name="password" type="password" value={newUserForm.password ?? ''} onChange={handleNewUserInputChange} className="col-span-3" placeholder="••••••••" required disabled={isSubmittingUser}/>
+                    <Input id="password" name="password" type="password" value={newUserForm.password ?? ''} onChange={handleNewUserInputChange} className="col-span-3" placeholder="Min. 6 characters" required disabled={isSubmittingUser}/>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="role" className="text-right">
@@ -207,14 +220,14 @@ export default function AdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length === 0 ? (
+              {displayedUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center text-muted-foreground">
-                    No users found.
+                    No users created in this session yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((appUser) => (
+                displayedUsers.map((appUser) => (
                   <TableRow key={appUser.id}>
                     <TableCell className="font-medium">{appUser.email}</TableCell>
                     <TableCell className="capitalize">{appUser.role}</TableCell>
@@ -234,7 +247,7 @@ export default function AdminPage() {
         </CardContent>
          <CardFooter>
           <p className="text-xs text-muted-foreground">
-            Note: User creation and role assignment are conceptual. Full implementation requires backend Firebase Admin SDK setup.
+            Note: User creation now attempts to use Firebase Admin SDK. Proper Admin SDK setup and security for the action are crucial for production.
           </p>
         </CardFooter>
       </Card>
@@ -260,3 +273,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
