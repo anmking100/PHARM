@@ -6,23 +6,24 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Settings } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Settings, DatabaseZap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface StatusItemProps {
   label: string;
   status: 'active' | 'inactive' | 'error';
   description?: string;
+  icon?: React.ElementType;
 }
 
-const StatusIndicator: React.FC<StatusItemProps> = ({ label, status, description }) => {
-  const Icon = status === 'active' ? CheckCircle : status === 'error' ? XCircle : Settings;
+const StatusIndicator: React.FC<StatusItemProps> = ({ label, status, description, icon }) => {
+  const IconDisplay = icon || (status === 'active' ? CheckCircle : status === 'error' ? XCircle : Settings);
   const color = status === 'active' ? 'text-green-500' : status === 'error' ? 'text-red-500' : 'text-yellow-500';
 
   return (
     <div className="flex items-center justify-between p-3 border-b last:border-b-0">
       <div className="flex items-center gap-3">
-        <Icon className={`h-5 w-5 ${color}`} />
+        <IconDisplay className={`h-5 w-5 ${color}`} />
         <div>
           <p className="font-medium">{label}</p>
           {description && <p className="text-xs text-muted-foreground">{description}</p>}
@@ -72,7 +73,12 @@ export default function AppStatusPage() {
   // Conceptual status items
   const statusItems: StatusItemProps[] = [
     { label: 'AI Fax Processing Service', status: 'active', description: 'Genkit flow for data extraction.' },
-    { label: 'External API Integrations', status: 'inactive', description: 'No external APIs currently in use.' },
+    { 
+      label: 'External API Integrations', 
+      status: 'inactive', 
+      description: 'Conceptual: Drug Information Database API for interactions, side effects, etc. Not yet implemented.',
+      icon: DatabaseZap
+    },
     { label: 'Automated Fax Intake', status: 'error', description: 'Conceptual - Fax polling service offline.' },
   ];
 
