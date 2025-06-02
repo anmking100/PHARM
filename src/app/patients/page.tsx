@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Users, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Info, Clock } from 'lucide-react';
 import type { MedicationData, MedicationStatus } from '@/lib/types';
 import { getAllPatientRecords } from '@/lib/patient-data';
-import { Button } from '@/components/ui/button'; // Added for login redirect
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
 
 const statusDisplay: Record<MedicationStatus, string> = {
   pending_extraction: "Pending Extraction",
@@ -44,7 +45,13 @@ export default function PatientsPage() {
       } else {
         const records = getAllPatientRecords();
         // For this page, let's only show records that have been at least reviewed or packed.
-        setPatientRecords(records.filter(r => r.status === 'reviewed' || r.status === 'packed'));
+        setPatientRecords(records.filter(r => r.status === 'reviewed' || r.status === 'packed')
+                                  .sort((a, b) => {
+                                    // Sort by parsedAt descending (newest first)
+                                    const dateA = a.parsedAt ? new Date(a.parsedAt).getTime() : 0;
+                                    const dateB = b.parsedAt ? new Date(b.parsedAt).getTime() : 0;
+                                    return dateB - dateA;
+                                  }));
         setIsLoadingRecords(false);
       }
     }
@@ -60,7 +67,6 @@ export default function PatientsPage() {
   }
 
   if (!user || !canViewPage) {
-    // This case should ideally be handled by the redirect, but as a fallback:
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
             <Alert variant="destructive" className="max-w-md">
@@ -86,7 +92,7 @@ export default function PatientsPage() {
             Patient Records
           </h1>
           <p className="text-muted-foreground">
-            View all reviewed and packed prescription records.
+            View all reviewed and packed prescription records. Sorted by most recently parsed.
           </p>
         </div>
       </div>
@@ -115,19 +121,26 @@ export default function PatientsPage() {
                   <TableHead>Patient Name</TableHead>
                   <TableHead>Medication</TableHead>
                   <TableHead>Dosage</TableHead>
-                  <TableHead>Frequency</TableHead>
-                  <TableHead>Prescribing Doctor</TableHead>
+                  {/* <TableHead>Frequency</TableHead> */}
+                  {/* <TableHead>Prescribing Doctor</TableHead> */}
+                  <TableHead className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    Parsed At
+                  </TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {patientRecords.map((record, index) => (
-                  <TableRow key={record.id || index}>
+                {patientRecords.map((record) => (
+                  <TableRow key={record.id}>
                     <TableCell>{record.patientName || 'N/A'}</TableCell>
                     <TableCell>{record.medicationName || 'N/A'}</TableCell>
                     <TableCell>{record.dosage || 'N/A'}</TableCell>
-                    <TableCell>{record.frequency || 'N/A'}</TableCell>
-                    <TableCell>{record.prescribingDoctor || 'N/A'}</TableCell>
+                    {/* <TableCell>{record.frequency || 'N/A'}</TableCell> */}
+                    {/* <TableCell>{record.prescribingDoctor || 'N/A'}</TableCell> */}
+                    <TableCell>
+                      {record.parsedAt ? format(new Date(record.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
+                    </TableCell>
                     <TableCell>
                       {record.status && (
                         <Badge variant={getStatusBadgeVariant(record.status)}>

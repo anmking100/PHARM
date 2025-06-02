@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2, PackageCheck, ClipboardList } from "lucide-react";
+import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2, PackageCheck, ClipboardList, Clock } from "lucide-react";
 import type { MedicationData, MedicationStatus } from "@/lib/types";
 import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
 
 interface ExtractedDataFormProps {
   data: MedicationData | null;
@@ -20,7 +21,7 @@ interface ExtractedDataFormProps {
   canEdit: boolean;
   canPack: boolean;
   currentStatus?: MedicationStatus;
-  isTechnicianView?: boolean; // Added to refine messages for technicians
+  isTechnicianView?: boolean;
 }
 
 const statusDisplay: Record<MedicationStatus, string> = {
@@ -95,15 +96,15 @@ export default function ExtractedDataForm({
     switch (status) {
       case 'pending_review': return 'destructive';
       case 'reviewed': return 'secondary';
-      case 'packed': return 'default'; // primary color
+      case 'packed': return 'default'; 
       default: return 'outline';
     }
   };
 
   const isSaveDisabled = currentStatus === 'packed' || currentStatus === 'reviewed';
-  // Technicians can only pack if status is 'reviewed'. Admins/Pharmacists have more freedom for testing.
   const isPackDisabled = currentStatus === 'packed' || (isTechnicianView && currentStatus !== 'reviewed');
 
+  const formattedParsedAt = data.parsedAt ? format(new Date(data.parsedAt), "PPpp") : 'N/A';
 
   return (
     <Card>
@@ -133,7 +134,7 @@ export default function ExtractedDataForm({
             </AlertDescription>
           </Alert>
         )}
-         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && val === "" && typeof val === 'string') && (
+         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && (
           <Alert variant="default" className="bg-accent/10 border-accent/50 text-accent-foreground">
             <Info className="h-4 w-4 text-accent" />
             <AlertTitle>Missing Information</AlertTitle>
@@ -176,6 +177,20 @@ export default function ExtractedDataForm({
               Is Handwritten?
             </Label>
           </div>
+           {data.parsedAt && (
+            <div className="grid gap-1.5 pt-2">
+              <Label className="font-medium flex items-center">
+                <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                Parsed At
+              </Label>
+              <Input
+                type="text"
+                value={formattedParsedAt}
+                readOnly
+                className="text-sm text-muted-foreground bg-muted/50"
+              />
+            </div>
+          )}
         </form>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">

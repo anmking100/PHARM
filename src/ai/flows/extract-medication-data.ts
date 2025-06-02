@@ -29,6 +29,7 @@ const ExtractMedicationDataOutputSchema = z.object({
   prescribingDoctor: z.string().describe('The name of the prescribing doctor.').optional().default(''),
   isHandwritten: z.boolean().describe('Whether the prescription is handwritten.').optional().default(false),
   status: z.custom<MedicationStatus>().describe('The current status of the prescription.').optional().default('pending_review'),
+  parsedAt: z.string().datetime().describe('The ISO timestamp when the document was successfully parsed.').optional(),
 });
 export type ExtractMedicationDataOutput = z.infer<typeof ExtractMedicationDataOutputSchema>;
 
@@ -67,10 +68,11 @@ const extractMedicationDataPrompt = ai.definePrompt({
 
   Based on the image, determine if the prescription appears to be handwritten. Use the 'shouldInterpretHandwriting' tool if needed to determine if the fax contains handwriting.
   Set the initial status of the prescription to 'pending_review'.
+  Also, record the current timestamp (in ISO format) for when this parsing occurs in the 'parsedAt' field.
 
   Here is the fax image: {{media url=faxDataUri}}
 
-  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields. Ensure 'status' is set to 'pending_review'.
+  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields. Ensure 'status' is set to 'pending_review' and 'parsedAt' is set to the current ISO timestamp.
   `,
 });
 
@@ -81,6 +83,7 @@ const extractMedicationDataFlow = ai.defineFlow(
     outputSchema: ExtractMedicationDataOutputSchema,
   },
   async input => {
+    const currentTimestamp = new Date().toISOString();
     const {output} = await extractMedicationDataPrompt(input);
     if (!output) {
       console.error("AI prompt returned null output. Returning default structure.");
@@ -92,8 +95,10 @@ const extractMedicationDataFlow = ai.defineFlow(
         prescribingDoctor: '',
         isHandwritten: false,
         status: 'pending_review',
+        parsedAt: currentTimestamp,
       };
     }
-    return {...output, status: output.status || 'pending_review' };
+    // Ensure parsedAt is always set, even if AI misses it.
+    return {...output, status: output.status || 'pending_review', parsedAt: output.parsedAt || currentTimestamp };
   }
 );
