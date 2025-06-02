@@ -21,7 +21,7 @@ export function SidebarUserNavigation() {
     <>
       {user && canSeePatientsLink && (
         <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="Patient Records" isActive={pathname === '/patients'}>
+          <SidebarMenuButton asChild tooltip="Patient Records" isActive={pathname === '/patients'} size="lg">
             <Link href="/patients">
               <Users />
               <span>Patients</span>
@@ -31,7 +31,7 @@ export function SidebarUserNavigation() {
       )}
        {user && isAdmin && (
         <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="App Status" isActive={pathname === '/app-status'}>
+          <SidebarMenuButton asChild tooltip="App Status" isActive={pathname === '/app-status'} size="lg">
             <Link href="/app-status">
               <Activity />
               <span>App Status</span>
@@ -41,7 +41,7 @@ export function SidebarUserNavigation() {
       )}
       {user && isAdmin && (
         <SidebarMenuItem>
-          <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>
+          <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'} size="lg">
             <Link href="/admin">
               <ShieldCheck />
               <span>Admin Panel</span>

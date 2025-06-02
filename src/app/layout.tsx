@@ -40,7 +40,7 @@ export default function RootLayout({
               <SidebarContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Home">
+                    <SidebarMenuButton asChild tooltip="Home" size="lg">
                       <Link href="/">
                         <Home />
                         <span>Home</span>
