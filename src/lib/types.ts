@@ -34,3 +34,8 @@ export interface NewUserFormData {
   canApproveMedication?: boolean;
 }
 
+// Conceptual user stored in AdminPage state
+export interface ConceptualUser extends NewUserFormData {
+  id: string; 
+  // email, role, password, canUploadDocs, canReviewDocs, canApproveMedication are inherited
+}

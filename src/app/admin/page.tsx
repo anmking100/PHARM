@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, type FormEvent } from 'react';
+import React, { useState, useEffect, type FormEvent, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -11,34 +11,50 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from '@/components/ui/badge';
+import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare, Users2, Search, Edit3, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createUserWithRole } from './actions';
-import type { UserRole, NewUserFormData } from '@/lib/types';
+import type { UserRole, NewUserFormData, ConceptualUser } from '@/lib/types';
 
 
 export default function AdminPage() {
-  const { user: authUser, loading: authLoading, isAdmin } = useAuth(); // Use isAdmin directly
+  const { user: authUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  // State for the inline form
+  // State for new user form
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState<UserRole>('technician'); // Default role
+  const [newUserRole, setNewUserRole] = useState<UserRole>('technician');
   const [canUploadDocs, setCanUploadDocs] = useState(false);
   const [canReviewDocs, setCanReviewDocs] = useState(false);
   const [canApproveMedication, setCanApproveMedication] = useState(false);
-
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   const [createUserError, setCreateUserError] = useState<string | null>(null);
 
+  // State for user management
+  const [conceptualUsers, setConceptualUsers] = useState<ConceptualUser[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // State for editing user
+  const [editingUser, setEditingUser] = useState<ConceptualUser | null>(null);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+  const [editUserForm, setEditUserForm] = useState<Partial<ConceptualUser>>({});
+
+  // State for deleting user
+  const [deletingUser, setDeletingUser] = useState<ConceptualUser | null>(null);
+  const [isDeleteUserConfirmOpen, setIsDeleteUserConfirmOpen] = useState(false);
+
+
   useEffect(() => {
-    if (!authLoading && (!authUser || !isAdmin)) { // Check against isAdmin
-      console.log('[AdminPage] Access denied or not logged in. Redirecting.');
+    if (!authLoading && (!authUser || !isAdmin)) {
       router.replace('/login?redirect=/admin');
     }
-  }, [authUser, authLoading, isAdmin, router]); // Use isAdmin in dependency array
+  }, [authUser, authLoading, isAdmin, router]);
 
   const handleCreateUserSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -66,12 +82,21 @@ export default function AdminPage() {
     const result = await createUserWithRole(userData);
     setIsSubmittingUser(false);
 
-    if (result.success) {
+    if (result.success && result.email && result.role) {
+      const newConceptualUser: ConceptualUser = {
+        id: `mock_user_${Date.now()}`,
+        email: result.email,
+        role: result.role,
+        password: newUserPassword, // conceptually store password too
+        canUploadDocs: result.canUploadDocs,
+        canReviewDocs: result.canReviewDocs,
+        canApproveMedication: result.canApproveMedication,
+      };
+      setConceptualUsers(prev => [...prev, newConceptualUser]);
       toast({
         title: 'User Created (Conceptual)',
         description: result.message || `User ${result.email} (${result.role}) conceptually created.`,
       });
-      // Reset form fields
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserRole('technician');
@@ -89,6 +114,61 @@ export default function AdminPage() {
     }
   };
 
+  const handleOpenEditDialog = (userToEdit: ConceptualUser) => {
+    setEditingUser(userToEdit);
+    setEditUserForm({ // Initialize form with user's current data
+      role: userToEdit.role,
+      canUploadDocs: userToEdit.canUploadDocs,
+      canReviewDocs: userToEdit.canReviewDocs,
+      canApproveMedication: userToEdit.canApproveMedication,
+    });
+    setIsEditUserDialogOpen(true);
+  };
+
+  const handleEditUserFormChange = (field: keyof ConceptualUser, value: string | boolean) => {
+    setEditUserForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveUserChanges = () => {
+    if (!editingUser || !editUserForm.role) return;
+    setConceptualUsers(prevUsers => 
+      prevUsers.map(u => 
+        u.id === editingUser.id 
+        ? { ...u, 
+            role: editUserForm.role as UserRole, 
+            canUploadDocs: editUserForm.canUploadDocs,
+            canReviewDocs: editUserForm.canReviewDocs,
+            canApproveMedication: editUserForm.canApproveMedication,
+          } 
+        : u
+      )
+    );
+    toast({ title: 'User Updated', description: `Permissions for ${editingUser.email} updated conceptually.` });
+    setIsEditUserDialogOpen(false);
+    setEditingUser(null);
+  };
+  
+  const handleOpenDeleteConfirm = (userToDelete: ConceptualUser) => {
+    setDeletingUser(userToDelete);
+    setIsDeleteUserConfirmOpen(true);
+  };
+
+  const handleDeleteUser = () => {
+    if (!deletingUser) return;
+    setConceptualUsers(prevUsers => prevUsers.filter(u => u.id !== deletingUser.id));
+    toast({ title: 'User Deleted', description: `User ${deletingUser.email} deleted conceptually.` });
+    setIsDeleteUserConfirmOpen(false);
+    setDeletingUser(null);
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm) return conceptualUsers;
+    return conceptualUsers.filter(user => 
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [conceptualUsers, searchTerm]);
+
+
   if (authLoading || (!authUser && !authLoading)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -98,7 +178,7 @@ export default function AdminPage() {
     );
   }
   
-  if (!authUser || !isAdmin) { // Check against isAdmin
+  if (!authUser || !isAdmin) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
             <Alert variant="destructive" className="max-w-md">
@@ -112,7 +192,6 @@ export default function AdminPage() {
     );
   }
 
-  console.log('[AdminPage] Rendering admin dashboard content for:', authUser.email);
   return (
     <div className="space-y-8 p-4 md:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -221,7 +300,176 @@ export default function AdminPage() {
           </form>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users2 className="mr-2 h-5 w-5" />
+            Manage Users (Conceptual)
+          </CardTitle>
+          <CardDescription>View, search, edit, and delete conceptually created users.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <Input 
+              placeholder="Search users by email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+
+          {filteredUsers.length > 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Upload</TableHead>
+                    <TableHead>Review</TableHead>
+                    <TableHead>Approve</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.email}</TableCell>
+                      <TableCell><Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge></TableCell>
+                      <TableCell>{user.canUploadDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
+                      <TableCell>{user.canReviewDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
+                      <TableCell>{user.canApproveMedication ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
+                      <TableCell className="space-x-2">
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(user)}>
+                          <Edit3 className="h-4 w-4" />
+                          <span className="sr-only">Edit User</span>
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleOpenDeleteConfirm(user)}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete User</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4">
+              {conceptualUsers.length === 0 ? "No users created yet." : "No users match your search."}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit User Dialog */}
+      {editingUser && (
+        <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User: {editingUser.email}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <Select 
+                  value={editUserForm.role} 
+                  onValueChange={(value) => handleEditUserFormChange('role', value as UserRole)}
+                >
+                  <SelectTrigger id="edit-role">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                    <SelectItem value="technician">Technician</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-medium">Permissions</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="edit-canUploadDocs" 
+                    checked={editUserForm.canUploadDocs} 
+                    onCheckedChange={(checked) => handleEditUserFormChange('canUploadDocs', checked as boolean)}
+                  />
+                  <Label htmlFor="edit-canUploadDocs" className="font-normal flex items-center gap-1">
+                    <UploadCloud className="h-4 w-4 text-muted-foreground" /> Upload Docs
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="edit-canReviewDocs" 
+                    checked={editUserForm.canReviewDocs} 
+                    onCheckedChange={(checked) => handleEditUserFormChange('canReviewDocs', checked as boolean)}
+                  />
+                  <Label htmlFor="edit-canReviewDocs" className="font-normal flex items-center gap-1">
+                    <ClipboardCheck className="h-4 w-4 text-muted-foreground" /> Review Docs
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="edit-canApproveMedication" 
+                    checked={editUserForm.canApproveMedication} 
+                    onCheckedChange={(checked) => handleEditUserFormChange('canApproveMedication', checked as boolean)}
+                  />
+                  <Label htmlFor="edit-canApproveMedication" className="font-normal flex items-center gap-1">
+                    <CheckSquare className="h-4 w-4 text-muted-foreground" /> Approve Medication
+                  </Label>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditUserDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveUserChanges}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete User Confirmation Dialog */}
+      {deletingUser && (
+        <AlertDialog open={isDeleteUserConfirmOpen} onOpenChange={setIsDeleteUserConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action will conceptually delete the user <span className="font-semibold">{deletingUser.email}</span>. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeletingUser(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteUser} className={buttonVariants({variant: "destructive"})}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
     </div>
   );
 }
 
+// Helper icon for XCircle, as it's not directly in lucide-react
+const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <line x1="15" y1="9" x2="9" y2="15" />
+    <line x1="9" y1="9" x2="15" y2="15" />
+  </svg>
+);
+// Make sure to import buttonVariants if using it for AlertDialogAction styling
+import { buttonVariants } from '@/components/ui/button';
