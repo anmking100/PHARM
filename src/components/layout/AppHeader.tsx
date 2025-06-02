@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
-import { Settings2, LogOut, UserCircle } from 'lucide-react';
+import { Settings2, LogOut, UserCircle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function AppHeader() {
-  const { user, role, logout, loading } = useAuth();
+  const { user, role, isAdmin, logout, loading } = useAuth(); // Added isAdmin
   const router = useRouter();
   const { toast } = useToast();
 
@@ -34,11 +34,14 @@ export default function AppHeader() {
   };
 
   const handleSettings = () => {
-    // Placeholder for settings navigation or action
     toast({
       title: 'Settings Clicked',
       description: 'Settings functionality is not yet implemented.',
     });
+  };
+
+  const handleAppStatus = () => {
+    router.push('/app-status');
   };
 
   return (
@@ -70,11 +73,19 @@ export default function AppHeader() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSettings} className="cursor-pointer">
-                    <Settings2 className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={handleAppStatus} className="cursor-pointer">
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      <span>App Status</span>
+                    </DropdownMenuItem>
+                  )}
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={handleSettings} className="cursor-pointer">
+                      <Settings2 className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                  )}
+                  {isAdmin && <DropdownMenuSeparator />}
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>
@@ -83,7 +94,6 @@ export default function AppHeader() {
               </DropdownMenu>
             </>
           ) : (
-            // Login button removed as per previous request
             null
           )}
         </div>
