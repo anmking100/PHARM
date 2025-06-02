@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import FaxUploadForm from '@/components/medication/FaxUploadForm';
 import FaxDisplay from '@/components/medication/FaxDisplay';
 import ExtractedDataForm from '@/components/medication/ExtractedDataForm';
@@ -19,6 +20,7 @@ import { upsertPatientRecord } from '@/lib/patient-data';
 
 export default function HomePage() {
   const { user, isPharmacist, isTechnician, isAdmin, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [faxDataUri, setFaxDataUri] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<MedicationData | null>(null);
@@ -29,6 +31,12 @@ export default function HomePage() {
 
   const canUploadAndEdit = isPharmacist || isAdmin;
   const canMarkAsPacked = isTechnician;
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login?redirect=/');
+    }
+  }, [user, authLoading, router]);
 
   const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -169,7 +177,7 @@ export default function HomePage() {
     );
   }
 
-  if (!user) {
+  if (!user && !authLoading) { // Check !authLoading here too
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
          <Card className="w-full max-w-md">
@@ -178,7 +186,7 @@ export default function HomePage() {
             <CardDescription>Please log in to access this page.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => window.location.href = '/login'} className="w-full">Go to Login</Button>
+            <Button onClick={() => router.push('/login?redirect=/')} className="w-full">Go to Login</Button>
           </CardContent>
         </Card>
       </div>

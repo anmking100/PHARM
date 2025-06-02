@@ -27,9 +27,17 @@ export default function LoginPage() {
   useEffect(() => {
     console.log('[LoginPage] useEffect check. User:', user?.email, 'AuthLoading:', authLoading);
     if (!authLoading && user) {
-      const redirectUrl = searchParams.get('redirect') || (user.role === 'admin' ? '/admin' : '/');
-      console.log(`[LoginPage] User logged in (${user.role}). Redirecting to ${redirectUrl}`);
-      router.replace(redirectUrl);
+      const redirectParam = searchParams.get('redirect');
+      let targetUrl = redirectParam || (user.role === 'admin' ? '/admin' : '/');
+
+      // Prevent non-admins from being sent directly to /admin if that was the redirect param
+      if (user.role !== 'admin' && targetUrl === '/admin') {
+        console.log(`[LoginPage] Non-admin (${user.role}) attempted redirect to /admin. Overriding to /.`);
+        targetUrl = '/';
+      }
+      
+      console.log(`[LoginPage] User logged in (${user.role}). Redirecting to ${targetUrl}`);
+      router.replace(targetUrl);
     }
   }, [user, authLoading, router, searchParams]);
 
