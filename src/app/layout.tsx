@@ -7,7 +7,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
 import { Logo } from '@/components/icons/Logo';
 import Link from 'next/link';
-import { Home } from 'lucide-react'; // Removed ShieldCheck as admin link is handled by SidebarUserNavigation
+import { Home } from 'lucide-react';
 import { SidebarUserNavigation } from '@/components/layout/SidebarUserNavigation';
 
 
@@ -47,17 +47,19 @@ export default function RootLayout({
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {/* SidebarUserNavigation will handle Patients and Admin link visibility */}
                   <SidebarUserNavigation />
                 </SidebarMenu>
               </SidebarContent>
-              {/* Footer can be added here if needed */}
             </Sidebar>
-            <SidebarInset>
+            <SidebarInset className="flex flex-col min-h-0"> {/* Ensure SidebarInset can flex its children */}
               <AppHeader />
               <main className="flex-grow container mx-auto px-4 py-8">
                 {children}
               </main>
+              <footer className="py-4 px-6 text-center text-xs text-muted-foreground border-t">
+                <p>Version 1.0.0</p>
+                <p>&copy; 2024 Your Pharmacy Solutions</p>
+              </footer>
               <Toaster />
             </SidebarInset>
           </SidebarProvider>

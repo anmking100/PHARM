@@ -189,21 +189,18 @@ export default function HomePage() {
   return (
     <div className="flex flex-grow h-full">
       <div className="w-2/5 bg-black text-white p-6 flex flex-col space-y-4">
-        <div>
-          <h2 className="text-3xl font-semibold border-b border-gray-700 pb-2">RxFlow Assist</h2>
-          <p className="text-gray-300">
+        {/* Content removed as per request, version/copyright now global */}
+      </div>
+
+      <div className="w-3/5 bg-background text-foreground p-6 overflow-y-auto">
+        <div className="mb-6">
+          <h2 className="text-3xl font-semibold border-b border-border pb-2 text-foreground">RxFlow Assist</h2>
+          <p className="text-muted-foreground mt-2">
             Streamline your pharmacy operations with AI-powered fax processing. 
             This system helps extract critical medication information from faxes,
             reducing manual data entry and potential errors.
           </p>
         </div>
-        <div className="mt-auto pt-4">
-            <p className="text-xs text-gray-500">Version 1.0.0</p>
-            <p className="text-xs text-gray-500">&copy; 2024 Your Pharmacy Solutions</p>
-        </div>
-      </div>
-
-      <div className="w-3/5 bg-background text-foreground p-6 overflow-y-auto">
         <div className="space-y-6">
           {canUploadAndEdit && (
             <FaxUploadForm
