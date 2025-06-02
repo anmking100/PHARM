@@ -17,7 +17,7 @@ import type { UserRole, NewUserFormData } from '@/lib/types';
 
 
 export default function AdminPage() {
-  const { user: authUser, loading: authLoading, authUserRole } = useAuth(); // Changed role to authUserRole for clarity
+  const { user: authUser, loading: authLoading, isAdmin } = useAuth(); // Use isAdmin directly
   const router = useRouter();
   const { toast } = useToast();
 
@@ -29,11 +29,11 @@ export default function AdminPage() {
   const [createUserError, setCreateUserError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authLoading && (!authUser || authUserRole !== 'admin')) {
+    if (!authLoading && (!authUser || !isAdmin)) { // Check against isAdmin
       console.log('[AdminPage] Access denied or not logged in. Redirecting.');
       router.replace('/login?redirect=/admin');
     }
-  }, [authUser, authLoading, authUserRole, router]);
+  }, [authUser, authLoading, isAdmin, router]); // Use isAdmin in dependency array
 
   const handleCreateUserSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -87,7 +87,7 @@ export default function AdminPage() {
     );
   }
   
-  if (!authUser || authUserRole !== 'admin') {
+  if (!authUser || !isAdmin) { // Check against isAdmin
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
             <Alert variant="destructive" className="max-w-md">
@@ -112,7 +112,6 @@ export default function AdminPage() {
             </h1>
             <p className="text-muted-foreground">Manage users and system settings.</p>
         </div>
-        {/* Button to trigger dialog is removed */}
       </div>
 
       <Card>
@@ -179,18 +178,6 @@ export default function AdminPage() {
           </form>
         </CardContent>
       </Card>
-
-      {/* Future sections can be added here */}
-      {/* 
-      <Card>
-        <CardHeader>
-          <CardTitle>System Configuration</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">System settings will go here.</p>
-        </CardContent>
-      </Card> 
-      */}
     </div>
   );
 }
