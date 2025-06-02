@@ -88,7 +88,6 @@ export default function HomePage() {
 
     try {
       const result = await extractMedicationData({ faxDataUri });
-      // AI result comes without an ID. ID is assigned upon first save.
       setExtractedData({...result, status: result.status || 'pending_review'}); 
       toast({
         title: "Processing Complete",
@@ -130,7 +129,7 @@ export default function HomePage() {
 
     const dataToSave = { ...extractedData, status: 'reviewed' as MedicationStatus };
     const savedData = upsertPatientRecord(dataToSave); 
-    setExtractedData(savedData); // Update state with potentially new ID and status
+    setExtractedData(savedData); 
     
     console.log("Saving changes and upserting to patient records:", savedData);
     toast({
@@ -140,17 +139,15 @@ export default function HomePage() {
   };
   
   const handleMarkAsPacked = () => {
-    if (!canMarkAsPacked && !(isAdmin || isPharmacist)) { // Allow admin/pharmacist to also pack for testing
+    if (!canMarkAsPacked && !(isAdmin || isPharmacist)) { 
       toast({variant: "destructive", title: "Permission Denied", description: "You do not have sufficient permissions to mark as packed."});
       return;
     }
     if (!extractedData) return;
-     // Technicians can only mark as packed if it's already reviewed.
     if (isTechnician && extractedData.status !== 'reviewed') {
       toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed by a pharmacist before it can be packed."});
       return;
     }
-
 
     const dataToUpdate = { ...extractedData, status: 'packed' as MedicationStatus };
     const updatedData = upsertPatientRecord(dataToUpdate);
@@ -190,24 +187,24 @@ export default function HomePage() {
 
 
   return (
-    <div className="flex flex-grow h-full"> {/* Main flex container for two panels */}
-      {/* Left Panel - 40% black */}
+    <div className="flex flex-grow h-full">
       <div className="w-2/5 bg-black text-white p-6 flex flex-col space-y-4">
-        <h2 className="text-3xl font-semibold border-b border-gray-700 pb-2">RxFlow Assist</h2>
-        <p className="text-gray-300">
-          Streamline your pharmacy operations with AI-powered fax processing. 
-          This system helps extract critical medication information from faxes,
-          reducing manual data entry and potential errors.
-        </p>
+        <div>
+          <h2 className="text-3xl font-semibold border-b border-gray-700 pb-2">RxFlow Assist</h2>
+          <p className="text-gray-300">
+            Streamline your pharmacy operations with AI-powered fax processing. 
+            This system helps extract critical medication information from faxes,
+            reducing manual data entry and potential errors.
+          </p>
+        </div>
         <div className="mt-auto pt-4">
             <p className="text-xs text-gray-500">Version 1.0.0</p>
             <p className="text-xs text-gray-500">&copy; 2024 Your Pharmacy Solutions</p>
         </div>
       </div>
 
-      {/* Right Panel - 60% white - existing content goes here */}
       <div className="w-3/5 bg-background text-foreground p-6 overflow-y-auto">
-        <div className="space-y-6"> {/* Adjusted spacing for content within the panel */}
+        <div className="space-y-6">
           {canUploadAndEdit && (
             <FaxUploadForm
               onFileSelect={handleFileSelect}
@@ -216,7 +213,7 @@ export default function HomePage() {
               selectedFileName={selectedFile?.name || null}
             />
           )}
-          {!canUploadAndEdit && (isTechnician || !(isAdmin || isPharmacist)) && ( // Show if technician or if not admin/pharmacist
+          {!canUploadAndEdit && (isTechnician || !(isAdmin || isPharmacist)) && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Restricted View</AlertTitle>
@@ -236,7 +233,6 @@ export default function HomePage() {
 
           <Separator />
 
-          {/* Changed to single column layout for FaxDisplay and ExtractedDataForm */}
           <div className="space-y-6">
             <FaxDisplay faxImageUri={faxDataUri} />
             <ExtractedDataForm
@@ -246,7 +242,7 @@ export default function HomePage() {
               onMarkAsPacked={handleMarkAsPacked}
               isProcessingAi={isProcessingAi}
               canEdit={canUploadAndEdit}
-              canPack={canMarkAsPacked || isAdmin || isPharmacist} // Admins/Pharmacists can also pack for testing
+              canPack={canMarkAsPacked || isAdmin || isPharmacist}
               currentStatus={extractedData?.status}
               isTechnicianView={isTechnician}
             />
