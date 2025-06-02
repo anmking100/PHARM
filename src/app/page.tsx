@@ -109,7 +109,7 @@ export default function HomePage() {
   };
 
   const handleDataChange = (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => {
-    if (!canUploadAndEdit) { // Technicians cannot edit fields directly through this
+    if (!canUploadAndEdit) { 
         toast({variant: "destructive", title: "Permission Denied", description: "You cannot edit prescription details."});
         return;
     }
@@ -126,7 +126,6 @@ export default function HomePage() {
     }
     if (!extractedData) return;
 
-    // Conceptual save: update status to 'reviewed'
     const updatedData = { ...extractedData, status: 'reviewed' as MedicationStatus };
     setExtractedData(updatedData);
     console.log("Saving changes (conceptual):", updatedData);
@@ -143,7 +142,6 @@ export default function HomePage() {
     }
     if (!extractedData) return;
 
-    // Conceptual update: change status to 'packed'
     const updatedData = { ...extractedData, status: 'packed' as MedicationStatus };
     setExtractedData(updatedData);
     console.log("Marked as packed (conceptual):", updatedData);
@@ -163,7 +161,6 @@ export default function HomePage() {
   }
 
   if (!user) {
-    // This should ideally redirect to login if not handled by a higher-level route guard
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
          <Card className="w-full max-w-md">
@@ -181,49 +178,68 @@ export default function HomePage() {
 
 
   return (
-    <div className="space-y-8">
-      {canUploadAndEdit && (
-        <FaxUploadForm
-          onFileSelect={handleFileSelect}
-          onProcessFax={handleProcessFax}
-          isProcessing={isProcessingFax}
-          selectedFileName={selectedFile?.name || null}
-        />
-      )}
-      {!canUploadAndEdit && isTechnician && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Technician View</AlertTitle>
-          <AlertDescription>
-            You are in technician view. You can view prescription details and mark them as packed. 
-            Fax upload and editing are restricted.
-          </AlertDescription>
-        </Alert>
-      )}
+    <div className="flex flex-grow h-full"> {/* Main flex container for two panels */}
+      {/* Left Panel - 40% black */}
+      <div className="w-2/5 bg-black text-white p-6 flex flex-col space-y-4">
+        <h2 className="text-3xl font-semibold border-b border-gray-700 pb-2">RxFlow Assist</h2>
+        <p className="text-gray-300">
+          Streamline your pharmacy operations with AI-powered fax processing. 
+          This system helps extract critical medication information from faxes,
+          reducing manual data entry and potential errors.
+        </p>
+        <div className="mt-auto pt-4">
+            <p className="text-xs text-gray-500">Version 1.0.0</p>
+            <p className="text-xs text-gray-500">&copy; 2024 Your Pharmacy Solutions</p>
+        </div>
+      </div>
 
+      {/* Right Panel - 60% white - existing content goes here */}
+      <div className="w-3/5 bg-background text-foreground p-6 overflow-y-auto">
+        <div className="space-y-6"> {/* Adjusted spacing for content within the panel */}
+          {canUploadAndEdit && (
+            <FaxUploadForm
+              onFileSelect={handleFileSelect}
+              onProcessFax={handleProcessFax}
+              isProcessing={isProcessingFax}
+              selectedFileName={selectedFile?.name || null}
+            />
+          )}
+          {!canUploadAndEdit && isTechnician && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Technician View</AlertTitle>
+              <AlertDescription>
+                You are in technician view. You can view prescription details and mark them as packed. 
+                Fax upload and editing are restricted.
+              </AlertDescription>
+            </Alert>
+          )}
 
-      {error && (
-         <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-      )}
+          {error && (
+             <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+          )}
 
-      <Separator />
+          <Separator />
 
-      <div className="grid md:grid-cols-2 gap-8">
-        <FaxDisplay faxImageUri={faxDataUri} />
-        <ExtractedDataForm
-          data={extractedData}
-          onDataChange={handleDataChange}
-          onSaveChanges={handleSaveChanges}
-          onMarkAsPacked={handleMarkAsPacked}
-          isProcessingAi={isProcessingAi}
-          canEdit={canUploadAndEdit}
-          canPack={canMarkAsPacked}
-          currentStatus={extractedData?.status}
-        />
+          {/* Changed to single column layout for FaxDisplay and ExtractedDataForm */}
+          <div className="space-y-6">
+            <FaxDisplay faxImageUri={faxDataUri} />
+            <ExtractedDataForm
+              data={extractedData}
+              onDataChange={handleDataChange}
+              onSaveChanges={handleSaveChanges}
+              onMarkAsPacked={handleMarkAsPacked}
+              isProcessingAi={isProcessingAi}
+              canEdit={canUploadAndEdit}
+              canPack={canMarkAsPacked}
+              currentStatus={extractedData?.status}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

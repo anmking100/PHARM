@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
-import { Settings2, LogIn, LogOut, UserCircle } from 'lucide-react';
+import { Settings2, LogOut, UserCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -57,12 +57,8 @@ export default function AppHeader() {
               </Button>
             </>
           ) : (
-            <Button asChild variant="default" size="sm">
-              <Link href="/login">
-                <LogIn className="mr-1 h-4 w-4 sm:mr-2" />
-                Login
-              </Link>
-            </Button>
+            // Login button removed
+            null
           )}
         </div>
       </div>
