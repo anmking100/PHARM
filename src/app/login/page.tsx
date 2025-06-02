@@ -32,24 +32,18 @@ export default function LoginPage() {
 
         if (user.role === 'technician') {
             targetUrl = '/patients'; // Default for technician
-            // If a specific, valid (non-root, non-admin) redirect was requested, honor it
-            if (redirectParam && redirectParam !== '/' && redirectParam !== '/admin') {
+            // If a specific, valid (non-root, non-admin, non-app-status) redirect was requested, honor it
+            if (redirectParam && redirectParam !== '/' && redirectParam !== '/admin' && redirectParam !== '/app-status') {
                 targetUrl = redirectParam;
             }
         } else if (user.role === 'admin') {
             targetUrl = redirectParam || '/admin'; // Default for admin
         } else { // pharmacist or other non-admin, non-technician roles
             targetUrl = redirectParam || '/'; // Default for others
-        }
-
-        // Final safety check: Non-admins should never land on /admin if it was the target by redirectParam
-        if (user.role !== 'admin' && targetUrl === '/admin') {
-            console.log(`[LoginPage] Non-admin (${user.role}) attempted redirect to /admin. Overriding to default for role.`);
-            // Re-evaluate default based on role if /admin was targeted inappropriately
-            if (user.role === 'technician') {
-                targetUrl = '/patients';
-            } else { // e.g. pharmacist
-                targetUrl = '/';
+             // Prevent non-admins from landing on /admin or /app-status
+            if (targetUrl === '/admin' || targetUrl === '/app-status') {
+                 console.log(`[LoginPage] Non-admin (${user.role}) attempted redirect to ${targetUrl}. Overriding to default for role.`);
+                 targetUrl = '/'; // Pharmacists default to home
             }
         }
         

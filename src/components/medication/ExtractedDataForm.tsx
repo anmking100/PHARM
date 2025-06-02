@@ -29,11 +29,11 @@ export default function ExtractedDataForm({
   onSaveChanges,
   onMarkAsPacked,
   isProcessingAi,
-  canEdit,
-  canPack,
+  canEdit, // True for Admin/Pharmacist on home page
+  canPack, // True for Admin/Pharmacist on home page
   currentStatus,
-  isTechnicianView,
-  isAdmin
+  isAdmin, // Crucial for override logic
+  // isTechnicianView is removed as this form is not directly used by technicians this way
 }: ExtractedDataFormProps) {
   const { toast } = useToast();
   const [isFetchingSideEffects, setIsFetchingSideEffects] = useState(false);
@@ -42,6 +42,12 @@ export default function ExtractedDataForm({
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    
+    // Prevent edit if packed and not admin
+    if (currentStatus === 'packed' && !isAdmin) {
+        toast({ variant: "destructive", title: "Action Not Allowed", description: "Packed prescriptions cannot be modified." });
+        return;
+    }
     onDataChange(name as keyof MedicationData, type === 'checkbox' ? checked : value);
      if (name === "medicationName") {
       setSideEffectsData(null);
@@ -51,8 +57,14 @@ export default function ExtractedDataForm({
 
   const handleFetchSideEffects = async () => {
     if (!data?.medicationName) return;
-    // Allow admin to fetch side effects even if packed
-    if (!isAdmin && (!canEdit || currentStatus === 'packed')) return;
+    
+    // Allow admin to fetch side effects even if packed. Others cannot if packed.
+    if (currentStatus === 'packed' && !isAdmin) {
+         toast({ variant: "destructive", title: "Action Not Allowed", description: "Cannot fetch side effects for a packed prescription." });
+        return;
+    }
+    // Also ensure user fundamentally has edit rights for this component context
+    if (!canEdit && !isAdmin) return;
 
 
     setIsFetchingSideEffects(true);
@@ -132,20 +144,16 @@ export default function ExtractedDataForm({
     }
   };
   
-  // Admin can always edit/interact, otherwise disabled if packed.
-  const isEffectivelyDisabledForNonAdmin = !isAdmin && currentStatus === 'packed';
-  const isFormFieldsDisabled = !canEdit || isEffectivelyDisabledForNonAdmin;
-
+  const isEffectivelyDisabled = currentStatus === 'packed' && !isAdmin; // Form is disabled if packed UNLESS user is admin
+  const isFormFieldsDisabled = !canEdit || isEffectivelyDisabled; // General editability + admin override for packed
 
   const saveButtonDisabled = 
-    (isEffectivelyDisabledForNonAdmin) || // Disabled for non-admin if packed
-    (!isAdmin && (currentStatus === 'reviewed' || currentStatus === 'approved')) || // Disabled for non-admin if already reviewed/approved (no change to save)
-    (!canEdit && !isAdmin); // Disabled if user fundamentally cannot edit (and is not admin)
+    (!canEdit && !isAdmin) || // User fundamentally cannot edit (and isn't admin)
+    (currentStatus === 'packed' && !isAdmin); // Non-admin cannot save if packed
 
   const packButtonDisabled =
-    (isEffectivelyDisabledForNonAdmin) || // Disabled for non-admin if packed
-    (!isAdmin && isTechnicianView && currentStatus !== 'reviewed' && currentStatus !== 'approved') || // Technician specific logic for non-admins
-    (!canPack && !isAdmin); // Disabled if user fundamentally cannot pack (and is not admin)
+    (!canPack && !isAdmin) || // User fundamentally cannot pack (and isn't admin)
+    (currentStatus === 'packed' && !isAdmin); // Non-admin cannot pack if already packed
 
 
   const formattedParsedAt = data.parsedAt ? format(new Date(data.parsedAt), "PPpp") : 'N/A';
@@ -154,7 +162,7 @@ export default function ExtractedDataForm({
   if (isAdmin && currentStatus === 'packed') {
     saveButtonText = "Re-Open for Review";
   } else if (currentStatus === 'reviewed' || currentStatus === 'approved') {
-    saveButtonText = 'Already Reviewed/Approved';
+    saveButtonText = 'Save Changes'; // Allow saving minor edits even if reviewed/approved
   } else if (currentStatus === 'packed' && !isAdmin) {
      saveButtonText = 'Prescription Packed';
   }
@@ -165,7 +173,7 @@ export default function ExtractedDataForm({
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="flex items-center gap-2 text-xl">
-            {(canEdit || isAdmin) && !isEffectivelyDisabledForNonAdmin ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
+            {(canEdit || isAdmin) && !isEffectivelyDisabled ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
             Extracted Medication Data
           </CardTitle>
           {currentStatus && (
@@ -175,13 +183,13 @@ export default function ExtractedDataForm({
           )}
         </div>
         <CardDescription>
-          {isEffectivelyDisabledForNonAdmin
+          {isEffectivelyDisabled
             ? "This prescription is packed. Only an Admin can modify it further."
             : ((canEdit || isAdmin) ? "Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention." : "View extracted prescription details.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {data.isHandwritten && !isEffectivelyDisabledForNonAdmin && (
+        {data.isHandwritten && !isEffectivelyDisabled && (
           <Alert variant={(canEdit || isAdmin) ? "destructive" : "default"}>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Handwritten Prescription Detected</AlertTitle>
@@ -190,7 +198,7 @@ export default function ExtractedDataForm({
             </AlertDescription>
           </Alert>
         )}
-         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && !isEffectivelyDisabledForNonAdmin &&(
+         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && !isEffectivelyDisabled && (
           <Alert variant="default" className="bg-accent/10 border-accent/50 text-accent-foreground">
             <Info className="h-4 w-4 text-accent" />
             <AlertTitle>Missing Information</AlertTitle>
@@ -206,7 +214,7 @@ export default function ExtractedDataForm({
               <div className="grid gap-1.5">
                 <Label htmlFor={field.id} className="font-medium">
                   {field.label}
-                  {(canEdit || isAdmin) && !isEffectivelyDisabledForNonAdmin && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
+                  {(canEdit || isAdmin) && !isEffectivelyDisabled && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Input
@@ -217,15 +225,15 @@ export default function ExtractedDataForm({
                     onChange={handleInputChange}
                     placeholder={field.placeholder}
                     disabled={isFormFieldsDisabled}
-                    className={`flex-grow ${(!isEffectivelyDisabledForNonAdmin && (canEdit || isAdmin) && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
+                    className={`flex-grow ${(!isEffectivelyDisabled && (canEdit || isAdmin) && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
                   />
-                  {field.hasSideEffectButton && (canEdit || isAdmin) && !isEffectivelyDisabledForNonAdmin && (
+                  {field.hasSideEffectButton && (canEdit || isAdmin) && !isEffectivelyDisabled && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={handleFetchSideEffects}
-                      disabled={isFetchingSideEffects || !data?.medicationName}
+                      disabled={isFetchingSideEffects || !data?.medicationName || (currentStatus === 'packed' && !isAdmin)}
                       aria-label="Fetch side effects"
                     >
                       {isFetchingSideEffects ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pill className="h-4 w-4" />}
@@ -234,7 +242,7 @@ export default function ExtractedDataForm({
                   )}
                 </div>
               </div>
-              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && !isEffectivelyDisabledForNonAdmin && (
+              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && !isEffectivelyDisabled && (
                 <div className="mt-2">
                   {isFetchingSideEffects && (
                     <Alert variant="default" className="bg-muted/50">
@@ -314,10 +322,11 @@ export default function ExtractedDataForm({
         {(canPack || isAdmin) && (
           <Button onClick={onMarkAsPacked} variant="default" disabled={packButtonDisabled}>
             <PackageCheck className="mr-2 h-4 w-4" />
-            {currentStatus === 'packed' && !isAdmin ? 'Already Packed' : (isAdmin && currentStatus === 'packed' ? 'Re-Pack' : 'Mark as Packed')}
+            {currentStatus === 'packed' ? (isAdmin ? 'Re-Pack' : 'Already Packed') : 'Mark as Packed'}
           </Button>
         )}
       </CardFooter>
     </Card>
   );
 }
+

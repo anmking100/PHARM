@@ -5,9 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import AppHeader from '@/components/layout/AppHeader';
 import { AuthProvider } from '@/context/AuthContext';
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
-// Logo import removed as it's no longer used directly in this file's body
-import Link from 'next/link';
-import { Home } from 'lucide-react';
+// Logo import removed from here, AppHeader handles it.
+// Home icon import is removed from here, SidebarUserNavigation handles its own icons.
 import { SidebarUserNavigation } from '@/components/layout/SidebarUserNavigation';
 
 
@@ -33,18 +32,11 @@ export default function RootLayout({
           <SidebarProvider>
             <Sidebar>
               <SidebarHeader className="p-4">
-                {/* Content of SidebarHeader (Logo and Link) removed */}
+                {/* Content of SidebarHeader (Logo and Link) is managed by AppHeader or direct link if needed */}
               </SidebarHeader>
               <SidebarContent>
                 <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip="Home" size="lg">
-                      <Link href="/">
-                        <Home />
-                        <span>Home</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {/* General Home link is removed from here; SidebarUserNavigation will conditionally render it */}
                   <SidebarUserNavigation />
                 </SidebarMenu>
               </SidebarContent>

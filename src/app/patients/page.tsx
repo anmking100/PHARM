@@ -44,8 +44,8 @@ const getStatusBadgeVariant = (status?: MedicationStatus) => {
   switch (status) {
     case 'pending_review': return 'destructive';
     case 'reviewed': return 'secondary';
-    case 'approved': return 'default';
-    case 'packed': return 'default';
+    case 'approved': return 'default'; // Positive color
+    case 'packed': return 'default'; // Positive color
     default: return 'outline';
   }
 };
@@ -74,8 +74,10 @@ export default function PatientsPage() {
 
     let relevantRecords;
     if (isTechnician && !isAdmin && !isPharmacist) {
+      // Technicians see only 'approved' or 'packed' records
       relevantRecords = allRecords.filter(r => r.status === 'approved' || r.status === 'packed');
     } else {
+      // Admins and Pharmacists see 'reviewed', 'approved', or 'packed' records
       relevantRecords = allRecords.filter(r => r.status === 'reviewed' || r.status === 'approved' || r.status === 'packed');
     }
 
@@ -113,7 +115,7 @@ export default function PatientsPage() {
         fetchAndProcessRecords();
       }
     }
-  }, [user, authLoading, isAdmin, isPharmacist, isTechnician, router, canViewPage, fetchAndProcessRecords]);
+  }, [user, authLoading, router, canViewPage, fetchAndProcessRecords]);
 
   const togglePatientExpansion = (patientName: string) => {
     setExpandedPatients(prev => {
@@ -130,10 +132,11 @@ export default function PatientsPage() {
   const handleApproveRecord = (recordToApprove: MedicationData) => {
     if (!recordToApprove || !recordToApprove.id) return;
 
-    const canApprove = (isAdmin && (recordToApprove.status === 'reviewed' || recordToApprove.status === 'packed')) ||
-                       (isPharmacist && recordToApprove.status === 'reviewed');
+    const canPerformApprove = 
+      (isAdmin && (recordToApprove.status === 'reviewed' || recordToApprove.status === 'packed')) ||
+      (isPharmacist && recordToApprove.status === 'reviewed');
 
-    if (!canApprove) {
+    if (!canPerformApprove) {
         toast({ variant: "destructive", title: "Action Denied", description: "You do not have permission to approve this record in its current state." });
         return;
     }
@@ -150,12 +153,21 @@ export default function PatientsPage() {
   const handleMarkAsPackedOnPatientsPage = (recordToPack: MedicationData) => {
     if (!recordToPack || !recordToPack.id ) return;
     
-    const canPack = (isAdmin || isTechnician) && recordToPack.status === 'approved';
+    const canPerformPack = 
+        (isAdmin && (recordToPack.status === 'approved' || recordToPack.status === 'packed')) || // Admin can re-pack
+        (isPharmacist && recordToPack.status === 'approved') ||
+        (isTechnician && recordToPack.status === 'approved');
 
-    if (!canPack) {
-      toast({ variant: "destructive", title: "Action Denied", description: "Record must be 'approved' to be packed." });
+
+    if (!canPerformPack) {
+      toast({ variant: "destructive", title: "Action Denied", description: "Record must be 'approved' to be packed by your role, or you are an admin re-packing." });
       return;
     }
+     if (recordToPack.status === 'packed' && !isAdmin) {
+      toast({ variant: "destructive", title: "Already Packed", description: "This record is already packed." });
+      return;
+    }
+
 
     const updatedRecord = { ...recordToPack, status: 'packed' as MedicationStatus };
     upsertPatientRecord(updatedRecord);
@@ -167,12 +179,16 @@ export default function PatientsPage() {
   };
 
   const openDeleteDialog = (record: MedicationData) => {
+    if (!canDeleteRecords) {
+        toast({variant: "destructive", title: "Permission Denied", description: "You cannot delete records."});
+        return;
+    }
     setRecordToDelete(record);
     setIsDeleteDialogOpen(true);
   };
 
   const confirmDeleteRecord = () => {
-    if (!recordToDelete || !recordToDelete.id) return;
+    if (!recordToDelete || !recordToDelete.id || !canDeleteRecords) return;
 
     const success = deletePatientRecord(recordToDelete.id);
     if (success) {
@@ -226,14 +242,21 @@ export default function PatientsPage() {
 
 
   const renderActionsDropdown = (record: MedicationData) => {
-    const canAdminApprove = isAdmin && (record.status === 'reviewed' || record.status === 'packed');
-    const canPharmacistApprove = isPharmacist && record.status === 'reviewed';
-    const showApproveAction = canAdminApprove || canPharmacistApprove;
+    // Approve Action
+    const showApproveAction = 
+        (isAdmin && (record.status === 'reviewed' || record.status === 'packed')) ||
+        (isPharmacist && record.status === 'reviewed');
 
-    const canAdminOrTechPack = (isAdmin || isTechnician) && record.status === 'approved';
-    const showPackAction = canAdminOrTechPack;
+    // Pack Action
+    const showPackAction = 
+        (isAdmin && (record.status === 'approved' || record.status === 'packed')) || // Admin can (re)pack 'approved' or 'packed'
+        (isPharmacist && record.status === 'approved') ||
+        (isTechnician && record.status === 'approved');
+    
+    const disablePackIfAlreadyPackedNonAdmin = record.status === 'packed' && !isAdmin;
 
-    const showDeleteAction = canDeleteRecords; // Admins and Pharmacists can delete
+    // Delete Action
+    const showDeleteAction = canDeleteRecords; 
 
     if (!showApproveAction && !showPackAction && !showDeleteAction) {
       return <span className="text-xs text-muted-foreground">No actions</span>;
@@ -249,15 +272,15 @@ export default function PatientsPage() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {showApproveAction && (
-            <DropdownMenuItem onClick={() => handleApproveRecord(record)}>
+            <DropdownMenuItem onClick={() => handleApproveRecord(record)} disabled={record.status === 'packed' && !isAdmin}>
               <CheckCircle className="mr-2 h-4 w-4" />
               Approve
             </DropdownMenuItem>
           )}
           {showPackAction && (
-            <DropdownMenuItem onClick={() => handleMarkAsPackedOnPatientsPage(record)}>
+            <DropdownMenuItem onClick={() => handleMarkAsPackedOnPatientsPage(record)} disabled={disablePackIfAlreadyPackedNonAdmin}>
               <PackageCheck className="mr-2 h-4 w-4" />
-              Mark as Packed
+              {record.status === 'packed' && isAdmin ? 'Re-Pack' : 'Mark as Packed'}
             </DropdownMenuItem>
           )}
           {showDeleteAction && (showApproveAction || showPackAction) && <DropdownMenuSeparator />}
@@ -292,7 +315,7 @@ export default function PatientsPage() {
           <CardTitle>Prescription List</CardTitle>
           <CardDescription>
             {(isTechnician && !isAdmin && !isPharmacist)
-              ? "The table shows approved prescriptions. Click patient name to see history."
+              ? "The table shows approved and packed prescriptions. Click patient name to see history."
               : "The table shows the most recent reviewed, approved, or packed record per patient. Click patient name to see history."
             }
           </CardDescription>
@@ -316,12 +339,12 @@ export default function PatientsPage() {
               {groupedPatientData.length === 0 && !isLoadingRecords ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    {(isTechnician && !isAdmin && !isPharmacist) ? "No approved prescriptions found." : "No relevant patient records found."}
+                    {(isTechnician && !isAdmin && !isPharmacist) ? "No approved or packed prescriptions found." : "No relevant patient records found."}
                   </TableCell>
                 </TableRow>
               ) : (
                 groupedPatientData.map(({ patientName, records }) => {
-                  const mostRecentRecord = records[0];
+                  const mostRecentRecord = records[0]; // This will be the one displayed primarily
                   const isExpanded = expandedPatients.has(patientName);
 
                   return (
@@ -364,7 +387,7 @@ export default function PatientsPage() {
                             <div className="bg-muted/20 p-2 border-l-4 border-primary/20">
                               <Table>
                                 <TableBody>
-                                  {records.slice(1).map((record, index) => {
+                                  {records.slice(1).map((record, index) => { // Display older records
                                     return (
                                       <TableRow key={record.id || `${patientName}-hist-${index}`} className="hover:bg-muted/40">
                                         <TableCell className="w-[25%] pl-6 text-xs text-muted-foreground">
@@ -388,7 +411,7 @@ export default function PatientsPage() {
                                       </TableRow>
                                     );
                                   })}
-                                  {records.length === 1 && (
+                                  {records.length === 1 && ( // Only one record total for this patient
                                      <TableRow>
                                       <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-2">
                                         No other historical records for this patient.

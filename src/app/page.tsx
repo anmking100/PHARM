@@ -29,14 +29,18 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const canUploadAndEdit = isPharmacist || isAdmin;
-  const canMarkAsPackedByRole = isTechnician || isPharmacist || isAdmin; // Pharmacist/Admin can also pack
+  const canAccessPage = isAdmin || isPharmacist;
+  const canUploadAndEdit = isAdmin || isPharmacist;
 
   const performRedirect = useCallback(() => {
-    if (!authLoading && !user) {
-      router.push('/login?redirect=/');
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login?redirect=/');
+      } else if (isTechnician) { // Technicians should not access this page
+        router.replace('/patients');
+      }
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user, isTechnician, router]);
 
   useEffect(() => {
     performRedirect();
@@ -138,8 +142,13 @@ export default function HomePage() {
   };
 
   const handleDataChange = (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => {
-    if (!canUploadAndEdit && !isAdmin) { // Allow admin to edit even if they don't strictly meet 'canUploadAndEdit'
+    if (!canUploadAndEdit) { 
         toast({variant: "destructive", title: "Permission Denied", description: "You cannot edit prescription details."});
+        return;
+    }
+    // Admin can edit even if packed, others cannot
+    if (extractedData?.status === 'packed' && !isAdmin) {
+        toast({variant: "destructive", title: "Action Not Allowed", description: "Packed prescriptions cannot be modified by your role."});
         return;
     }
     setExtractedData(prevData => {
@@ -149,38 +158,57 @@ export default function HomePage() {
   };
 
   const handleSaveChanges = () => {
-    // Admin can always save. Others only if canUploadAndEdit.
-    if (!isAdmin && !canUploadAndEdit) {
+    if (!canUploadAndEdit) {
        toast({variant: "destructive", title: "Permission Denied", description: "You cannot save prescription changes."});
       return;
     }
     if (!extractedData) return;
 
-    // If admin is saving a "packed" record, it becomes "reviewed"
-    const newStatus = (isAdmin && extractedData.status === 'packed') ? 'reviewed' : 'reviewed';
-    const dataToSave = { ...extractedData, status: newStatus as MedicationStatus };
+    // If Admin is saving a "packed" record, it becomes "reviewed"
+    // Otherwise, saving sets status to "reviewed" (or keeps it if already "approved" etc.)
+    let newStatus: MedicationStatus = 'reviewed';
+    if (isAdmin && extractedData.status === 'packed') {
+        newStatus = 'reviewed';
+    } else if (extractedData.status && ['approved', 'packed'].includes(extractedData.status) && !isAdmin) {
+        // Non-admins cannot change an approved or packed status back to reviewed via save
+        newStatus = extractedData.status;
+    } else if (extractedData.status) {
+        newStatus = extractedData.status === 'pending_extraction' || extractedData.status === 'pending_review' ? 'reviewed' : extractedData.status;
+    }
+
+
+    const dataToSave = { ...extractedData, status: newStatus };
     const savedData = upsertPatientRecord(dataToSave);
     setExtractedData(savedData);
 
     console.log("Saving changes and upserting to patient records:", savedData);
     toast({
       title: "Changes Saved",
-      description: `Medication data saved and status set to ${statusDisplay[newStatus]}. View in Patients page.`,
+      description: `Medication data saved. Status: ${statusDisplay[newStatus]}. View in Patients page.`,
     });
   };
 
   const handleMarkAsPacked = () => {
-    // Admin can always pack. Technician can pack if reviewed/approved. Pharmacist can pack.
-    if (!isAdmin && !canMarkAsPackedByRole) {
+    // Admin or Pharmacist can pack if status is pending_review, reviewed, or approved.
+    const canRolePack = isAdmin || isPharmacist;
+    
+    if (!canRolePack) {
       toast({variant: "destructive", title: "Permission Denied", description: "You do not have sufficient permissions to mark as packed."});
       return;
     }
     if (!extractedData) return;
 
-    if (!isAdmin && isTechnician && (extractedData.status !== 'reviewed' && extractedData.status !== 'approved')) {
-      toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed or approved before it can be packed."});
-      return;
+    if (extractedData.status === 'packed' && !isAdmin) {
+        toast({variant: "destructive", title: "Already Packed", description: "This prescription is already packed."});
+        return;
     }
+    
+    // Admins/Pharmacists can pack from 'pending_review', 'reviewed', 'approved'
+    if (!['pending_review', 'reviewed', 'approved'].includes(extractedData.status as string) && extractedData.status !== 'packed') {
+         toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be pending review, reviewed, or approved to be packed."});
+        return;
+    }
+
 
     const dataToUpdate = { ...extractedData, status: 'packed' as MedicationStatus };
     const updatedData = upsertPatientRecord(dataToUpdate);
@@ -211,16 +239,20 @@ export default function HomePage() {
     );
   }
 
-  if (!user && !authLoading) { // Check after authLoading is false
+  if ((!user && !authLoading) || (user && !canAccessPage)) { 
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
          <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
-            <CardDescription>Please log in to access this page.</CardDescription>
+            <CardDescription>
+                {user && !canAccessPage ? "You do not have permission to view this page." : "Please log in to access this page."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => router.push('/login?redirect=/')} className="w-full">Go to Login</Button>
+            <Button onClick={() => router.push(user && !canAccessPage ? (isTechnician ? '/patients' : '/login') : '/login?redirect=/')} className="w-full">
+                {user && !canAccessPage ? (isTechnician ? 'Go to Patients Page' : 'Go to Login') : 'Go to Login'}
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -240,7 +272,7 @@ export default function HomePage() {
           </p>
         </div>
         <div className="space-y-6">
-          {canUploadAndEdit && ( // Admin or Pharmacist can upload
+          {canUploadAndEdit && (
             <FaxUploadForm
               onFileSelect={handleFileSelect}
               onProcessFax={handleProcessFax}
@@ -248,16 +280,7 @@ export default function HomePage() {
               selectedFileName={selectedFile?.name || null}
             />
           )}
-          {!canUploadAndEdit && (isTechnician || !(isAdmin || isPharmacist)) && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Restricted View</AlertTitle>
-              <AlertDescription>
-                {isTechnician ? "You are in technician view. You can view prescription details and mark them as packed once reviewed or approved by a pharmacist." : "You do not have permission to upload or edit faxes."}
-              </AlertDescription>
-            </Alert>
-          )}
-
+          
           {error && (
              <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -276,11 +299,10 @@ export default function HomePage() {
               onSaveChanges={handleSaveChanges}
               onMarkAsPacked={handleMarkAsPacked}
               isProcessingAi={isProcessingAi}
-              canEdit={isAdmin || canUploadAndEdit} // Admin can always edit
-              canPack={isAdmin || canMarkAsPackedByRole} // Admin can always pack
+              canEdit={canUploadAndEdit} 
+              canPack={canUploadAndEdit} // For this page, Admin/Pharmacist can pack
               currentStatus={extractedData?.status}
-              isTechnicianView={isTechnician}
-              isAdmin={isAdmin} // Pass isAdmin prop
+              isAdmin={isAdmin} 
             />
           </div>
         </div>
@@ -296,3 +318,4 @@ const statusDisplay: Record<MedicationStatus, string> = {
   approved: "Approved",
   packed: "Packed",
 };
+
