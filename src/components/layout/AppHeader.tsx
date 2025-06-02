@@ -10,6 +10,14 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function AppHeader() {
   const { user, role, logout, loading } = useAuth();
@@ -23,6 +31,14 @@ export default function AppHeader() {
       description: 'You have been successfully logged out.',
     });
     router.push('/login');
+  };
+
+  const handleSettings = () => {
+    // Placeholder for settings navigation or action
+    toast({
+      title: 'Settings Clicked',
+      description: 'Settings functionality is not yet implemented.',
+    });
   };
 
   return (
@@ -45,19 +61,29 @@ export default function AppHeader() {
               <span className="text-sm text-muted-foreground hidden sm:inline capitalize">
                 {user.email} ({role})
               </span>
-               <Button variant="ghost" size="icon" aria-label="User Menu" disabled>
-                <UserCircle className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Settings" disabled>
-                <Settings2 className="h-5 w-5" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="mr-1 h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Logout</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="User Menu">
+                    <UserCircle className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSettings} className="cursor-pointer">
+                    <Settings2 className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
-            // Login button removed
+            // Login button removed as per previous request
             null
           )}
         </div>
