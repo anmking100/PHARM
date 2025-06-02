@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
-import { UserCircle, Settings2, LogIn, LogOut, Loader2, ShieldCheck } from 'lucide-react';
+import { UserCircle, Settings2, LogIn, LogOut, PanelLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { signOutUser } from '@/app/login/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function AppHeader() {
   const { user, loading } = useAuth();
@@ -33,11 +34,14 @@ export default function AppHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo />
-        </Link>
+        <div className="flex items-center gap-2">
+          {user && !loading && <SidebarTrigger />}
+          <Link href="/" className="flex items-center gap-2 md:pl-2">
+            <Logo />
+          </Link>
+        </div>
         <div className="flex items-center gap-2">
           {loading ? (
             <>
@@ -49,10 +53,7 @@ export default function AppHeader() {
               <span className="text-sm text-muted-foreground hidden sm:inline">
                 {user.email?.split('@')[0] || 'User'}
               </span>
-               <Button variant="ghost" size="icon" aria-label="Admin Panel" onClick={() => router.push('/admin')}>
-                <ShieldCheck className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Settings">
+              <Button variant="ghost" size="icon" aria-label="Settings" disabled> {/* Settings page not implemented */}
                 <Settings2 className="h-5 w-5" />
               </Button>
               <Button variant="outline" size="sm" onClick={handleLogout}>

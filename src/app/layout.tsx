@@ -3,6 +3,12 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import AppHeader from '@/components/layout/AppHeader';
 import { AuthProvider } from '@/context/AuthContext';
+import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
+import { Logo } from '@/components/icons/Logo';
+import Link from 'next/link';
+import { Home, ShieldCheck } from 'lucide-react';
+import { SidebarUserNavigation } from '@/components/layout/SidebarUserNavigation';
+
 
 export const metadata: Metadata = {
   title: 'RxFlow Assist',
@@ -23,11 +29,37 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased min-h-screen flex flex-col">
         <AuthProvider>
-          <AppHeader />
-          <main className="flex-grow container mx-auto px-4 py-8">
-            {children}
-          </main>
-          <Toaster />
+          <SidebarProvider>
+            <Sidebar>
+              <SidebarHeader className="p-4">
+                <Link href="/" className="flex items-center gap-2">
+                  <Logo />
+                </Link>
+              </SidebarHeader>
+              <SidebarContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip="Home">
+                      <Link href="/">
+                        <Home />
+                        <span>Home</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  {/* SidebarUserNavigation will handle admin link visibility based on auth state */}
+                  <SidebarUserNavigation />
+                </SidebarMenu>
+              </SidebarContent>
+              {/* Footer can be added here if needed */}
+            </Sidebar>
+            <SidebarInset>
+              <AppHeader />
+              <main className="flex-grow container mx-auto px-4 py-8">
+                {children}
+              </main>
+              <Toaster />
+            </SidebarInset>
+          </SidebarProvider>
         </AuthProvider>
       </body>
     </html>
