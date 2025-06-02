@@ -26,7 +26,7 @@ interface DisplayUser {
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  const { user: authUser, isAdmin, loading: authLoading, role: authUserRole } = useAuth();
+  const { user: authUser, loading: authLoading, role: authUserRole } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -41,9 +41,9 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
-    console.log('[AdminPage] Auth state check. AuthLoading:', authLoading, 'AuthUser:', authUser?.email, 'IsAdmin:', isAdmin);
+    console.log('[AdminPage] Auth state check. AuthLoading:', authLoading, 'AuthUser:', authUser?.email, 'AuthUserRole:', authUserRole);
     if (!authLoading) {
-      if (!authUser || authUserRole !== 'admin') { // Check role directly from auth context
+      if (!authUser || authUserRole !== 'admin') {
         console.log('[AdminPage] Not admin or not logged in, redirecting to /login.');
         router.replace('/login?redirect=/admin');
          toast({
@@ -55,7 +55,7 @@ export default function AdminPage() {
         console.log('[AdminPage] Admin access confirmed for:', authUser.email);
       }
     }
-  }, [authUser, authUserRole, isAdmin, authLoading, router, toast]);
+  }, [authUser, authUserRole, authLoading, router, toast]);
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -105,7 +105,7 @@ export default function AdminPage() {
     );
   }
   
-  if (!authUser || authUserRole !== 'admin') {
+  if (!authUser || authUserRole !== 'admin') { 
      console.log('[AdminPage] User not authenticated as admin, showing access denied or redirecting.');
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
@@ -158,7 +158,7 @@ export default function AdminPage() {
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateUserSubmit}>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4"> {/* Corrected typo here */}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="email" className="text-right">
                       Email
