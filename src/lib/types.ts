@@ -36,8 +36,21 @@ export interface NewUserFormData {
 
 // Conceptual user stored in AdminPage state
 export interface ConceptualUser extends NewUserFormData {
-  id: string; 
+  id: string;
   isSystemUser?: boolean; // Flag to identify if the user is from the hardcoded list
   // email, role, password, canUploadDocs, canReviewDocs, canApproveMedication are inherited
+}
+
+export interface ExtractedDataFormProps {
+  data: MedicationData | null;
+  onDataChange: (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => void;
+  onSaveChanges: () => void;
+  onMarkAsPacked: () => void;
+  isProcessingAi: boolean;
+  canEdit: boolean;
+  canPack: boolean;
+  currentStatus?: MedicationStatus;
+  isTechnicianView?: boolean;
+  isAdmin?: boolean; // Added for admin override capabilities
 }
 

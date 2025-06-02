@@ -30,7 +30,7 @@ export default function HomePage() {
   const { toast } = useToast();
 
   const canUploadAndEdit = isPharmacist || isAdmin;
-  const canMarkAsPacked = isTechnician;
+  const canMarkAsPackedByRole = isTechnician || isPharmacist || isAdmin; // Pharmacist/Admin can also pack
 
   const performRedirect = useCallback(() => {
     if (!authLoading && !user) {
@@ -118,14 +118,14 @@ export default function HomePage() {
           userFriendlyMessage = "The AI model is currently overloaded or unavailable. Please try again in a few moments.";
         } else {
           userFriendlyMessage = "Could not extract data from fax. Please check the console for details or try again.";
-           if (!lowerCaseMessage.includes("fetch")) { 
+           if (!lowerCaseMessage.includes("fetch")) {
              userFriendlyMessage = e.message;
            }
         }
       }
 
       setError(`Failed to process fax: ${userFriendlyMessage}`);
-      setExtractedData(null); 
+      setExtractedData(null);
       toast({
         variant: "destructive",
         title: toastTitle,
@@ -138,7 +138,7 @@ export default function HomePage() {
   };
 
   const handleDataChange = (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => {
-    if (!canUploadAndEdit) {
+    if (!canUploadAndEdit && !isAdmin) { // Allow admin to edit even if they don't strictly meet 'canUploadAndEdit'
         toast({variant: "destructive", title: "Permission Denied", description: "You cannot edit prescription details."});
         return;
     }
@@ -149,41 +149,38 @@ export default function HomePage() {
   };
 
   const handleSaveChanges = () => {
-    if (!canUploadAndEdit) {
+    // Admin can always save. Others only if canUploadAndEdit.
+    if (!isAdmin && !canUploadAndEdit) {
        toast({variant: "destructive", title: "Permission Denied", description: "You cannot save prescription changes."});
       return;
     }
     if (!extractedData) return;
 
-    const dataToSave = { ...extractedData, status: 'reviewed' as MedicationStatus };
+    // If admin is saving a "packed" record, it becomes "reviewed"
+    const newStatus = (isAdmin && extractedData.status === 'packed') ? 'reviewed' : 'reviewed';
+    const dataToSave = { ...extractedData, status: newStatus as MedicationStatus };
     const savedData = upsertPatientRecord(dataToSave);
     setExtractedData(savedData);
 
     console.log("Saving changes and upserting to patient records:", savedData);
     toast({
       title: "Changes Saved",
-      description: "Medication data saved and marked as reviewed. View in Patients page.",
+      description: `Medication data saved and status set to ${statusDisplay[newStatus]}. View in Patients page.`,
     });
   };
 
   const handleMarkAsPacked = () => {
-    if (!canMarkAsPacked && !(isAdmin || isPharmacist)) {
+    // Admin can always pack. Technician can pack if reviewed/approved. Pharmacist can pack.
+    if (!isAdmin && !canMarkAsPackedByRole) {
       toast({variant: "destructive", title: "Permission Denied", description: "You do not have sufficient permissions to mark as packed."});
       return;
     }
     if (!extractedData) return;
-    // Technicians can pack if reviewed or approved. Pharmacists/Admins have broader rights implicitly.
-    if (isTechnician && (extractedData.status !== 'reviewed' && extractedData.status !== 'approved')) {
-      toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed or approved by a pharmacist before it can be packed."});
+
+    if (!isAdmin && isTechnician && (extractedData.status !== 'reviewed' && extractedData.status !== 'approved')) {
+      toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed or approved before it can be packed."});
       return;
     }
-     if ((isAdmin || isPharmacist) && (extractedData.status !== 'reviewed' && extractedData.status !== 'approved' && extractedData.status !== 'pending_review')) {
-      // Pharmacist/admin can pack from pending_review, reviewed, or approved.
-      // If status is somehow 'packed' already or 'pending_extraction', this is an edge case, but let's allow packing from those key states.
-      // This condition primarily ensures it's not something like 'pending_extraction' by mistake IF more states were added.
-      // For now, the main check for pharmacist/admin is that data exists and they have the role.
-    }
-
 
     const dataToUpdate = { ...extractedData, status: 'packed' as MedicationStatus };
     const updatedData = upsertPatientRecord(dataToUpdate);
@@ -195,6 +192,15 @@ export default function HomePage() {
       description: "Prescription status updated to Packed and saved.",
     });
   };
+  
+  const statusDisplay: Record<MedicationStatus, string> = {
+    pending_extraction: "Pending Extraction",
+    pending_review: "Pending Review",
+    reviewed: "Reviewed",
+    approved: "Approved",
+    packed: "Packed",
+  };
+
 
   if (authLoading) {
     return (
@@ -234,7 +240,7 @@ export default function HomePage() {
           </p>
         </div>
         <div className="space-y-6">
-          {canUploadAndEdit && (
+          {canUploadAndEdit && ( // Admin or Pharmacist can upload
             <FaxUploadForm
               onFileSelect={handleFileSelect}
               onProcessFax={handleProcessFax}
@@ -270,10 +276,11 @@ export default function HomePage() {
               onSaveChanges={handleSaveChanges}
               onMarkAsPacked={handleMarkAsPacked}
               isProcessingAi={isProcessingAi}
-              canEdit={canUploadAndEdit}
-              canPack={canMarkAsPacked || isAdmin || isPharmacist}
+              canEdit={isAdmin || canUploadAndEdit} // Admin can always edit
+              canPack={isAdmin || canMarkAsPackedByRole} // Admin can always pack
               currentStatus={extractedData?.status}
               isTechnicianView={isTechnician}
+              isAdmin={isAdmin} // Pass isAdmin prop
             />
           </div>
         </div>
@@ -282,3 +289,10 @@ export default function HomePage() {
   );
 }
 
+const statusDisplay: Record<MedicationStatus, string> = {
+  pending_extraction: "Pending Extraction",
+  pending_review: "Pending Review",
+  reviewed: "Reviewed",
+  approved: "Approved",
+  packed: "Packed",
+};

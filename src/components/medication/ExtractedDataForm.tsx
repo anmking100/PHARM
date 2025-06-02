@@ -8,59 +8,52 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2, PackageCheck, ClipboardList, Clock, Pill, ListChecks } from "lucide-react";
-import type { MedicationData, MedicationStatus } from "@/lib/types";
+import type { MedicationData, MedicationStatus, ExtractedDataFormProps } from "@/lib/types";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { getDrugInfo, type GetDrugInfoOutput } from '@/ai/flows/get-drug-info-flow';
 import { useToast } from '@/hooks/use-toast';
 
-interface ExtractedDataFormProps {
-  data: MedicationData | null;
-  onDataChange: (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => void;
-  onSaveChanges: () => void;
-  onMarkAsPacked: () => void;
-  isProcessingAi: boolean;
-  canEdit: boolean;
-  canPack: boolean;
-  currentStatus?: MedicationStatus;
-  isTechnicianView?: boolean;
-}
 
-const statusDisplay: Record<MedicationStatus, string> = {
+const statusDisplayRecord: Record<MedicationStatus, string> = {
   pending_extraction: "Pending Extraction",
   pending_review: "Pending Review",
   reviewed: "Reviewed",
-  approved: "Approved", // Added approved
+  approved: "Approved", 
   packed: "Packed",
 };
 
-export default function ExtractedDataForm({ 
-  data, 
-  onDataChange, 
-  onSaveChanges, 
+export default function ExtractedDataForm({
+  data,
+  onDataChange,
+  onSaveChanges,
   onMarkAsPacked,
   isProcessingAi,
   canEdit,
   canPack,
   currentStatus,
-  isTechnicianView
+  isTechnicianView,
+  isAdmin
 }: ExtractedDataFormProps) {
   const { toast } = useToast();
   const [isFetchingSideEffects, setIsFetchingSideEffects] = useState(false);
   const [sideEffectsData, setSideEffectsData] = useState<GetDrugInfoOutput | null>(null);
   const [sideEffectsError, setSideEffectsError] = useState<string | null>(null);
-  
+
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     onDataChange(name as keyof MedicationData, type === 'checkbox' ? checked : value);
      if (name === "medicationName") {
-      setSideEffectsData(null); 
+      setSideEffectsData(null);
       setSideEffectsError(null);
     }
   };
 
   const handleFetchSideEffects = async () => {
-    if (!data?.medicationName || !canEdit || currentStatus === 'packed') return;
+    if (!data?.medicationName) return;
+    // Allow admin to fetch side effects even if packed
+    if (!isAdmin && (!canEdit || currentStatus === 'packed')) return;
+
 
     setIsFetchingSideEffects(true);
     setSideEffectsData(null);
@@ -104,7 +97,7 @@ export default function ExtractedDataForm({
       </Card>
     );
   }
-  
+
   if (!data) {
     return (
       <Card>
@@ -134,41 +127,62 @@ export default function ExtractedDataForm({
       case 'pending_review': return 'destructive';
       case 'reviewed': return 'secondary';
       case 'approved': return 'default';
-      case 'packed': return 'default'; 
+      case 'packed': return 'default';
       default: return 'outline';
     }
   };
+  
+  // Admin can always edit/interact, otherwise disabled if packed.
+  const isEffectivelyDisabledForNonAdmin = !isAdmin && currentStatus === 'packed';
+  const isFormFieldsDisabled = !canEdit || isEffectivelyDisabledForNonAdmin;
 
-  const isFormDisabled = currentStatus === 'packed';
-  const isSaveDisabled = isFormDisabled || currentStatus === 'reviewed' || currentStatus === 'approved';
-  const isPackDisabled = isFormDisabled || (isTechnicianView && currentStatus !== 'reviewed' && currentStatus !== 'approved');
+
+  const saveButtonDisabled = 
+    (isEffectivelyDisabledForNonAdmin) || // Disabled for non-admin if packed
+    (!isAdmin && (currentStatus === 'reviewed' || currentStatus === 'approved')) || // Disabled for non-admin if already reviewed/approved (no change to save)
+    (!canEdit && !isAdmin); // Disabled if user fundamentally cannot edit (and is not admin)
+
+  const packButtonDisabled =
+    (isEffectivelyDisabledForNonAdmin) || // Disabled for non-admin if packed
+    (!isAdmin && isTechnicianView && currentStatus !== 'reviewed' && currentStatus !== 'approved') || // Technician specific logic for non-admins
+    (!canPack && !isAdmin); // Disabled if user fundamentally cannot pack (and is not admin)
 
 
   const formattedParsedAt = data.parsedAt ? format(new Date(data.parsedAt), "PPpp") : 'N/A';
+
+  let saveButtonText = "Save Changes & Mark Reviewed";
+  if (isAdmin && currentStatus === 'packed') {
+    saveButtonText = "Re-Open for Review";
+  } else if (currentStatus === 'reviewed' || currentStatus === 'approved') {
+    saveButtonText = 'Already Reviewed/Approved';
+  } else if (currentStatus === 'packed' && !isAdmin) {
+     saveButtonText = 'Prescription Packed';
+  }
+
 
   return (
     <Card>
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="flex items-center gap-2 text-xl">
-            {canEdit && !isFormDisabled ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
+            {(canEdit || isAdmin) && !isEffectivelyDisabledForNonAdmin ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
             Extracted Medication Data
           </CardTitle>
           {currentStatus && (
              <Badge variant={getStatusBadgeVariant(currentStatus)} className="text-sm">
-                {statusDisplay[currentStatus] || "Unknown Status"}
+                {statusDisplayRecord[currentStatus] || "Unknown Status"}
             </Badge>
           )}
         </div>
         <CardDescription>
-          {isFormDisabled 
-            ? "This prescription is packed and cannot be modified." 
-            : (canEdit ? "Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention." : "View extracted prescription details.")}
+          {isEffectivelyDisabledForNonAdmin
+            ? "This prescription is packed. Only an Admin can modify it further."
+            : ((canEdit || isAdmin) ? "Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention." : "View extracted prescription details.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {data.isHandwritten && !isFormDisabled && (
-          <Alert variant={canEdit ? "destructive" : "default"}>
+        {data.isHandwritten && !isEffectivelyDisabledForNonAdmin && (
+          <Alert variant={(canEdit || isAdmin) ? "destructive" : "default"}>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Handwritten Prescription Detected</AlertTitle>
             <AlertDescription>
@@ -176,12 +190,12 @@ export default function ExtractedDataForm({
             </AlertDescription>
           </Alert>
         )}
-         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && !isFormDisabled &&(
+         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && !isEffectivelyDisabledForNonAdmin &&(
           <Alert variant="default" className="bg-accent/10 border-accent/50 text-accent-foreground">
             <Info className="h-4 w-4 text-accent" />
             <AlertTitle>Missing Information</AlertTitle>
             <AlertDescription>
-              Some fields could not be extracted. {canEdit ? "Please review and complete the missing information." : "Awaiting review."}
+              Some fields could not be extracted. {(canEdit || isAdmin) ? "Please review and complete the missing information." : "Awaiting review."}
             </AlertDescription>
           </Alert>
         )}
@@ -192,7 +206,7 @@ export default function ExtractedDataForm({
               <div className="grid gap-1.5">
                 <Label htmlFor={field.id} className="font-medium">
                   {field.label}
-                  {canEdit && !isFormDisabled && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
+                  {(canEdit || isAdmin) && !isEffectivelyDisabledForNonAdmin && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Input
@@ -202,10 +216,10 @@ export default function ExtractedDataForm({
                     value={data[field.id] as string}
                     onChange={handleInputChange}
                     placeholder={field.placeholder}
-                    disabled={!canEdit || isFormDisabled}
-                    className={`flex-grow ${(!isFormDisabled && canEdit && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
+                    disabled={isFormFieldsDisabled}
+                    className={`flex-grow ${(!isEffectivelyDisabledForNonAdmin && (canEdit || isAdmin) && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
                   />
-                  {field.hasSideEffectButton && canEdit && !isFormDisabled && (
+                  {field.hasSideEffectButton && (canEdit || isAdmin) && !isEffectivelyDisabledForNonAdmin && (
                     <Button
                       type="button"
                       variant="outline"
@@ -220,7 +234,7 @@ export default function ExtractedDataForm({
                   )}
                 </div>
               </div>
-              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && !isFormDisabled && (
+              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && !isEffectivelyDisabledForNonAdmin && (
                 <div className="mt-2">
                   {isFetchingSideEffects && (
                     <Alert variant="default" className="bg-muted/50">
@@ -267,8 +281,8 @@ export default function ExtractedDataForm({
                 type="checkbox"
                 checked={data.isHandwritten}
                 onChange={handleInputChange}
-                className="h-4 w-4 accent-primary" 
-                disabled={!canEdit || isFormDisabled}
+                className="h-4 w-4 accent-primary"
+                disabled={isFormFieldsDisabled}
               />
             <Label htmlFor="isHandwritten" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               Is Handwritten?
@@ -291,18 +305,16 @@ export default function ExtractedDataForm({
         </form>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
-        {canEdit && (
-          <Button onClick={onSaveChanges} variant="default" disabled={isSaveDisabled}>
+        {(canEdit || isAdmin) && (
+          <Button onClick={onSaveChanges} variant="default" disabled={saveButtonDisabled}>
             <Save className="mr-2 h-4 w-4" />
-            {currentStatus === 'packed' ? 'Prescription Packed' : 
-             (currentStatus === 'reviewed' || currentStatus === 'approved' ? 'Already Reviewed/Approved' : 
-             'Save Changes & Mark Reviewed')}
+            {saveButtonText}
           </Button>
         )}
-        {canPack && (
-          <Button onClick={onMarkAsPacked} variant="default" disabled={isPackDisabled}>
+        {(canPack || isAdmin) && (
+          <Button onClick={onMarkAsPacked} variant="default" disabled={packButtonDisabled}>
             <PackageCheck className="mr-2 h-4 w-4" />
-            {currentStatus === 'packed' ? 'Already Packed' : 'Mark as Packed'}
+            {currentStatus === 'packed' && !isAdmin ? 'Already Packed' : (isAdmin && currentStatus === 'packed' ? 'Re-Pack' : 'Mark as Packed')}
           </Button>
         )}
       </CardFooter>

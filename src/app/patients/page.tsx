@@ -27,15 +27,15 @@ const getStatusBadgeVariant = (status?: MedicationStatus) => {
   switch (status) {
     case 'pending_review': return 'destructive';
     case 'reviewed': return 'secondary';
-    case 'approved': return 'default'; 
-    case 'packed': return 'default'; 
+    case 'approved': return 'default';
+    case 'packed': return 'default';
     default: return 'outline';
   }
 };
 
 interface GroupedPatientData {
   patientName: string;
-  records: MedicationData[]; 
+  records: MedicationData[];
 }
 
 export default function PatientsPage() {
@@ -46,16 +46,16 @@ export default function PatientsPage() {
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [expandedPatients, setExpandedPatients] = useState<Set<string>>(new Set());
 
-  const canViewPage = isAdmin || isPharmacist || isTechnician; 
+  const canViewPage = isAdmin || isPharmacist || isTechnician;
 
   const fetchAndProcessRecords = useCallback(() => {
     setIsLoadingRecords(true);
     const allRecords = getAllPatientRecords();
-    
+
     let relevantRecords;
-    if (isTechnician) {
+    if (isTechnician && !isAdmin && !isPharmacist) { // Technician only view
       relevantRecords = allRecords.filter(r => r.status === 'approved' || r.status === 'packed');
-    } else { // Admin or Pharmacist
+    } else { // Admin or Pharmacist view
       relevantRecords = allRecords.filter(r => r.status === 'reviewed' || r.status === 'approved' || r.status === 'packed');
     }
 
@@ -72,18 +72,18 @@ export default function PatientsPage() {
       const sortedRecords = recordsList.sort((a, b) => {
         const dateA = a.parsedAt ? new Date(a.parsedAt).getTime() : 0;
         const dateB = b.parsedAt ? new Date(b.parsedAt).getTime() : 0;
-        return dateB - dateA; 
+        return dateB - dateA;
       });
       return {
         patientName: name,
         records: sortedRecords,
       };
     });
-    
+
     processedData.sort((a,b) => a.patientName.localeCompare(b.patientName));
     setGroupedPatientData(processedData);
     setIsLoadingRecords(false);
-  }, [isTechnician]);
+  }, [isTechnician, isAdmin, isPharmacist]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -108,7 +108,18 @@ export default function PatientsPage() {
   };
 
   const handleApproveRecord = (recordToApprove: MedicationData) => {
-    if (!recordToApprove || !recordToApprove.id || !(isAdmin || isPharmacist) || recordToApprove.status === 'packed') return;
+    if (!recordToApprove || !recordToApprove.id) return;
+
+    // Admin can approve from 'reviewed' or 'packed'. Pharmacist only from 'reviewed'.
+    if (!isAdmin && !(isPharmacist && recordToApprove.status === 'reviewed')) {
+        toast({ variant: "destructive", title: "Action Denied", description: "You do not have permission to approve this record in its current state." });
+        return;
+    }
+    if (!isAdmin && recordToApprove.status === 'packed') { // Pharmacist cannot re-approve if already packed
+        toast({ variant: "destructive", title: "Action Denied", description: "Pharmacists cannot change status of packed items." });
+        return;
+    }
+
 
     const updatedRecord = { ...recordToApprove, status: 'approved' as MedicationStatus };
     upsertPatientRecord(updatedRecord);
@@ -120,7 +131,14 @@ export default function PatientsPage() {
   };
 
   const handleMarkAsPackedOnPatientsPage = (recordToPack: MedicationData) => {
-    if (!recordToPack || !recordToPack.id || !isTechnician || recordToPack.status !== 'approved') return;
+    if (!recordToPack || !recordToPack.id ) return;
+    
+    // Admin or Technician can mark as packed if status is 'approved'
+    if ( !((isAdmin || isTechnician) && recordToPack.status === 'approved')) {
+      toast({ variant: "destructive", title: "Action Denied", description: "Record must be 'approved' to be packed by Technician. Admin can also pack 'approved' records." });
+      return;
+    }
+
 
     const updatedRecord = { ...recordToPack, status: 'packed' as MedicationStatus };
     upsertPatientRecord(updatedRecord);
@@ -157,11 +175,11 @@ export default function PatientsPage() {
         </div>
     );
   }
-  
-  const pageTitle = isTechnician ? "Approved Prescriptions for Packing" : "Patient Records";
-  const pageDescription = isTechnician 
+
+  const pageTitle = (isTechnician && !isAdmin && !isPharmacist) ? "Approved Prescriptions for Packing" : "Patient Records";
+  const pageDescription = (isTechnician && !isAdmin && !isPharmacist)
     ? "View approved prescriptions and mark them as packed."
-    : "Manage and view patient prescription history.";
+    : "Manage and view patient prescription history. Admins can modify packed items.";
 
 
   return (
@@ -182,7 +200,7 @@ export default function PatientsPage() {
         <CardHeader>
           <CardTitle>Prescription List</CardTitle>
           <CardDescription>
-            {isTechnician 
+            {(isTechnician && !isAdmin && !isPharmacist)
               ? "The table shows approved prescriptions. Click patient name to see history."
               : "The table shows the most recent reviewed, approved, or packed record per patient. Click patient name to see history."
             }
@@ -207,26 +225,29 @@ export default function PatientsPage() {
               {groupedPatientData.length === 0 && !isLoadingRecords ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    {isTechnician ? "No approved prescriptions found." : "No reviewed, approved, or packed patient records found."}
+                    {(isTechnician && !isAdmin && !isPharmacist) ? "No approved prescriptions found." : "No relevant patient records found."}
                   </TableCell>
                 </TableRow>
               ) : (
                 groupedPatientData.map(({ patientName, records }) => {
                   const mostRecentRecord = records[0];
                   const isExpanded = expandedPatients.has(patientName);
+                  const canAdminOrPharmacistApprove = (isAdmin && (mostRecentRecord?.status === 'reviewed' || mostRecentRecord?.status === 'packed')) || (isPharmacist && mostRecentRecord?.status === 'reviewed');
+                  const canTechnicianOrAdminPack = (isAdmin || isTechnician) && mostRecentRecord?.status === 'approved';
+
                   return (
                     <React.Fragment key={patientName}>
                       <TableRow className={isExpanded ? "bg-accent/10" : ""}>
                         <TableCell className="font-medium">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             onClick={() => togglePatientExpansion(patientName)}
                             className="p-1 h-auto justify-start w-full text-left hover:bg-accent/20"
                             aria-expanded={isExpanded}
                             aria-controls={`patient-history-${patientName.replace(/\s+/g, '-')}`}
                           >
-                            {isExpanded 
-                              ? <ChevronUp className="h-4 w-4 mr-2 shrink-0" /> 
+                            {isExpanded
+                              ? <ChevronUp className="h-4 w-4 mr-2 shrink-0" />
                               : <ChevronDown className="h-4 w-4 mr-2 shrink-0" />}
                             {patientName || 'N/A'} ({records.length} record{records.length === 1 ? '' : 's'})
                           </Button>
@@ -244,29 +265,26 @@ export default function PatientsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {mostRecentRecord?.status !== 'packed' && (
-                            <>
-                              {(isAdmin || isPharmacist) && mostRecentRecord?.status === 'reviewed' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleApproveRecord(mostRecentRecord)}
-                                >
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  Approve
-                                </Button>
-                              )}
-                              {isTechnician && mostRecentRecord?.status === 'approved' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleMarkAsPackedOnPatientsPage(mostRecentRecord)}
-                                >
-                                  <PackageCheck className="mr-2 h-4 w-4" />
-                                  Mark as Packed
-                                </Button>
-                              )}
-                            </>
+                          {canAdminOrPharmacistApprove && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleApproveRecord(mostRecentRecord)}
+                              className="mr-2"
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Approve
+                            </Button>
+                          )}
+                          {canTechnicianOrAdminPack && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleMarkAsPackedOnPatientsPage(mostRecentRecord)}
+                            >
+                              <PackageCheck className="mr-2 h-4 w-4" />
+                              Mark as Packed
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -277,53 +295,53 @@ export default function PatientsPage() {
                             <div className="bg-muted/20 p-2 border-l-4 border-accent">
                               <Table>
                                 <TableBody>
-                                  {records.slice(1).map((record, index) => (
-                                    <TableRow key={record.id || `${patientName}-hist-${index}`} className="hover:bg-muted/40">
-                                      <TableCell className="w-[25%] pl-6 text-xs text-muted-foreground">
-                                        {/* Intentionally left blank */}
-                                      </TableCell>
-                                      <TableCell className="w-[18%] text-xs">{record.medicationName || 'N/A'}</TableCell>
-                                      <TableCell className="w-[14%] text-xs">{record.dosage || 'N/A'}</TableCell>
-                                      <TableCell className="w-[18%] text-xs">
-                                        {record.parsedAt ? format(new Date(record.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
-                                      </TableCell>
-                                      <TableCell className="w-[15%]">
-                                        {record.status && (
-                                          <Badge variant={getStatusBadgeVariant(record.status)} className="text-xs px-1.5 py-0.5">
-                                            {statusDisplay[record.status] || 'Unknown'}
-                                          </Badge>
-                                        )}
-                                      </TableCell>
-                                       <TableCell className="w-[10%]">
-                                          {record.status !== 'packed' && (
-                                            <>
-                                              {(isAdmin || isPharmacist) && record.status === 'reviewed' && (
-                                                <Button
-                                                  variant="outline"
-                                                  size="xs"
-                                                  onClick={() => handleApproveRecord(record)}
-                                                  className="text-xs p-1 h-auto"
-                                                >
-                                                  <CheckCircle className="mr-1 h-3 w-3" />
-                                                  Approve
-                                                </Button>
-                                              )}
-                                              {isTechnician && record.status === 'approved' && (
-                                                <Button
-                                                  variant="outline"
-                                                  size="xs"
-                                                  onClick={() => handleMarkAsPackedOnPatientsPage(record)}
-                                                  className="text-xs p-1 h-auto"
-                                                >
-                                                  <PackageCheck className="mr-1 h-3 w-3" />
-                                                  Pack
-                                                </Button>
-                                              )}
-                                            </>
+                                  {records.slice(1).map((record, index) => {
+                                    const canHistAdminOrPharmacistApprove = (isAdmin && (record?.status === 'reviewed' || record?.status === 'packed')) || (isPharmacist && record?.status === 'reviewed');
+                                    const canHistTechnicianOrAdminPack = (isAdmin || isTechnician) && record?.status === 'approved';
+                                    return (
+                                      <TableRow key={record.id || `${patientName}-hist-${index}`} className="hover:bg-muted/40">
+                                        <TableCell className="w-[25%] pl-6 text-xs text-muted-foreground">
+                                          {/* Intentionally left blank */}
+                                        </TableCell>
+                                        <TableCell className="w-[18%] text-xs">{record.medicationName || 'N/A'}</TableCell>
+                                        <TableCell className="w-[14%] text-xs">{record.dosage || 'N/A'}</TableCell>
+                                        <TableCell className="w-[18%] text-xs">
+                                          {record.parsedAt ? format(new Date(record.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
+                                        </TableCell>
+                                        <TableCell className="w-[15%]">
+                                          {record.status && (
+                                            <Badge variant={getStatusBadgeVariant(record.status)} className="text-xs px-1.5 py-0.5">
+                                              {statusDisplay[record.status] || 'Unknown'}
+                                            </Badge>
                                           )}
-                                       </TableCell>
-                                    </TableRow>
-                                  ))}
+                                        </TableCell>
+                                        <TableCell className="w-[10%]">
+                                            {canHistAdminOrPharmacistApprove && (
+                                              <Button
+                                                variant="outline"
+                                                size="xs"
+                                                onClick={() => handleApproveRecord(record)}
+                                                className="text-xs p-1 h-auto mr-1"
+                                              >
+                                                <CheckCircle className="mr-1 h-3 w-3" />
+                                                Approve
+                                              </Button>
+                                            )}
+                                            {canHistTechnicianOrAdminPack && (
+                                              <Button
+                                                variant="outline"
+                                                size="xs"
+                                                onClick={() => handleMarkAsPackedOnPatientsPage(record)}
+                                                className="text-xs p-1 h-auto"
+                                              >
+                                                <PackageCheck className="mr-1 h-3 w-3" />
+                                                Pack
+                                              </Button>
+                                            )}
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
                                   {records.length === 1 && (
                                      <TableRow>
                                       <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-2">
@@ -348,4 +366,3 @@ export default function PatientsPage() {
     </div>
   );
 }
-
