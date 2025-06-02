@@ -34,7 +34,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.replace('/login?redirect=/');
+      router.push('/login?redirect=/');
     }
   }, [user, authLoading, router]);
 
@@ -54,7 +54,7 @@ export default function HomePage() {
     }
     setSelectedFile(file);
     setError(null);
-    setExtractedData(null); 
+    setExtractedData(null);
     if (file) {
       try {
         const dataUri = await fileToDataUri(file);
@@ -96,20 +96,36 @@ export default function HomePage() {
 
     try {
       const result = await extractMedicationData({ faxDataUri });
-      setExtractedData({...result, status: result.status || 'pending_review'}); 
+      setExtractedData({...result, status: result.status || 'pending_review'});
       toast({
         title: "Processing Complete",
         description: "Fax data extracted successfully. Status: Pending Review.",
       });
     } catch (e: any) {
       console.error("Error processing fax with AI:", e);
-      const errorMessage = e.message || "An unknown error occurred during AI processing.";
-      setError(`Failed to process fax: ${errorMessage}`);
-      setExtractedData(null);
+      let userFriendlyMessage = "An unknown error occurred during AI processing.";
+      let toastTitle = "AI Processing Error";
+
+      if (e.message && typeof e.message === 'string') {
+        const lowerCaseMessage = e.message.toLowerCase();
+        if (lowerCaseMessage.includes("503") || lowerCaseMessage.includes("overloaded") || lowerCaseMessage.includes("service unavailable")) {
+          toastTitle = "AI Service Overloaded";
+          userFriendlyMessage = "The AI model is currently overloaded or unavailable. Please try again in a few moments.";
+        } else {
+          // For other errors, use a generic message or the specific one if it's not too technical
+          userFriendlyMessage = "Could not extract data from fax. Please check the console for details or try again.";
+           if (!lowerCaseMessage.includes("fetch")) { // Avoid overly technical "fetch" errors
+             userFriendlyMessage = e.message;
+           }
+        }
+      }
+
+      setError(`Failed to process fax: ${userFriendlyMessage}`);
+      setExtractedData(null); // Ensure no stale data is shown
       toast({
         variant: "destructive",
-        title: "AI Processing Error",
-        description: `Could not extract data from fax. ${errorMessage}`,
+        title: toastTitle,
+        description: userFriendlyMessage,
       });
     } finally {
       setIsProcessingFax(false);
@@ -118,7 +134,7 @@ export default function HomePage() {
   };
 
   const handleDataChange = (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => {
-    if (!canUploadAndEdit) { 
+    if (!canUploadAndEdit) {
         toast({variant: "destructive", title: "Permission Denied", description: "You cannot edit prescription details."});
         return;
     }
@@ -136,18 +152,18 @@ export default function HomePage() {
     if (!extractedData) return;
 
     const dataToSave = { ...extractedData, status: 'reviewed' as MedicationStatus };
-    const savedData = upsertPatientRecord(dataToSave); 
-    setExtractedData(savedData); 
-    
+    const savedData = upsertPatientRecord(dataToSave);
+    setExtractedData(savedData);
+
     console.log("Saving changes and upserting to patient records:", savedData);
     toast({
       title: "Changes Saved",
       description: "Medication data saved and marked as reviewed. View in Patients page.",
     });
   };
-  
+
   const handleMarkAsPacked = () => {
-    if (!canMarkAsPacked && !(isAdmin || isPharmacist)) { 
+    if (!canMarkAsPacked && !(isAdmin || isPharmacist)) {
       toast({variant: "destructive", title: "Permission Denied", description: "You do not have sufficient permissions to mark as packed."});
       return;
     }
@@ -159,7 +175,7 @@ export default function HomePage() {
 
     const dataToUpdate = { ...extractedData, status: 'packed' as MedicationStatus };
     const updatedData = upsertPatientRecord(dataToUpdate);
-    setExtractedData(updatedData); 
+    setExtractedData(updatedData);
 
     console.log("Marked as packed and upserted to patient records:", updatedData);
     toast({
@@ -177,7 +193,7 @@ export default function HomePage() {
     );
   }
 
-  if (!user && !authLoading) { // Check !authLoading here too
+  if (!user && !authLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
          <Card className="w-full max-w-md">
@@ -200,7 +216,7 @@ export default function HomePage() {
         <div className="mb-6">
           <h2 className="text-3xl font-semibold border-b border-border pb-2 text-foreground">RxFlow Assist</h2>
           <p className="text-muted-foreground mt-2">
-            Streamline your pharmacy operations with AI-powered fax processing. 
+            Streamline your pharmacy operations with AI-powered fax processing.
             This system helps extract critical medication information from faxes,
             reducing manual data entry and potential errors.
           </p>
