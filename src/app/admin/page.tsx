@@ -9,44 +9,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+// Checkbox import removed as it's no longer used for permissions
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShieldCheck, Users2, Search, Trash2, CheckSquare, UserPlus, XCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, Users2, Search, Trash2, UserPlus } from 'lucide-react'; // CheckSquare, XCircle removed
 import { useToast } from '@/hooks/use-toast';
 import { getSystemUsers, createUserWithRole } from './actions';
 import type { UserRole, NewUserFormData, ConceptualUser } from '@/lib/types';
 
 
-// Helper icon for XCircle, as it's not directly in lucide-react by that name
-const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <line x1="15" y1="9" x2="9" y2="15" />
-    <line x1="9" y1="9" x2="15" y2="15" />
-  </svg>
-);
-
 const initialNewUserState: NewUserFormData = {
   email: '',
   role: 'technician', // Default role
   password: '',
-  canUploadDocs: false,
-  canReviewDocs: false,
-  canApproveMedication: false,
+  // Permission fields removed
 };
 
 
@@ -118,11 +96,10 @@ export default function AdminPage() {
   };
 
   const handleCreateUserInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const checked = (e.target as HTMLInputElement).checked;
+    const { name, value } = e.target;
     setNewUser(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: value,
     }));
   };
 
@@ -130,25 +107,25 @@ export default function AdminPage() {
     setNewUser(prev => ({ ...prev, role: value }));
   };
 
-  const handleCreateUserPermissionChange = (permission: keyof Omit<NewUserFormData, 'email' | 'role' | 'password'>, checked: boolean) => {
-    setNewUser(prev => ({ ...prev, [permission]: checked }));
-  };
+  // handleCreateUserPermissionChange removed
 
   const handleCreateUserSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsCreatingUser(true);
     try {
+      // NewUserFormData no longer includes explicit permissions, they will be set by the action
       const result = await createUserWithRole(newUser);
       if (result.success && result.userId && result.email && result.role) {
         const createdConceptualUser: ConceptualUser = {
             id: result.userId,
             email: result.email,
             role: result.role,
-            password: newUser.password, // Keep conceptual password if needed
+            password: newUser.password, 
+            // Permissions are now set by the action based on role
             canUploadDocs: result.canUploadDocs,
             canReviewDocs: result.canReviewDocs,
             canApproveMedication: result.canApproveMedication,
-            isSystemUser: false, // Newly created are not system users
+            isSystemUser: false, 
         };
         setSystemUsers(prev => [createdConceptualUser, ...prev]);
         toast({ title: "User Created (Session)", description: result.message });
@@ -207,7 +184,7 @@ export default function AdminPage() {
                 <ShieldCheck className="h-8 w-8 text-primary" />
                 Admin Dashboard
             </h1>
-            <p className="text-muted-foreground">Manage system settings and view users.</p>
+            <p className="text-muted-foreground">Manage system settings and view users. Permissions are based on role.</p>
         </div>
         <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
           <DialogTrigger asChild>
@@ -219,7 +196,7 @@ export default function AdminPage() {
             <DialogHeader>
               <DialogTitle>Create New User (Conceptual)</DialogTitle>
               <DialogDescription>
-                This user will be added to the admin view for this session only and is conceptual.
+                This user will be added to the admin view for this session only and is conceptual. Default permissions based on role will be assigned.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateUserSubmit} className="grid gap-4 py-4">
@@ -244,21 +221,7 @@ export default function AdminPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-4 space-y-2 pt-2">
-                <Label className="font-semibold">Permissions:</Label>
-                <div className="flex items-center space-x-2">
-                    <Checkbox id="canUploadDocs" name="canUploadDocs" checked={newUser.canUploadDocs} onCheckedChange={(checked) => handleCreateUserPermissionChange('canUploadDocs', Boolean(checked))} />
-                    <Label htmlFor="canUploadDocs" className="font-normal">Can Upload Documents</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <Checkbox id="canReviewDocs" name="canReviewDocs" checked={newUser.canReviewDocs} onCheckedChange={(checked) => handleCreateUserPermissionChange('canReviewDocs', Boolean(checked))} />
-                    <Label htmlFor="canReviewDocs" className="font-normal">Can Review Documents</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <Checkbox id="canApproveMedication" name="canApproveMedication" checked={newUser.canApproveMedication} onCheckedChange={(checked) => handleCreateUserPermissionChange('canApproveMedication', Boolean(checked))} />
-                    <Label htmlFor="canApproveMedication" className="font-normal">Can Approve Medication</Label>
-                </div>
-              </div>
+              {/* Permissions Checkboxes Removed */}
               <DialogFooter>
                 <Button type="submit" disabled={isCreatingUser}>
                   {isCreatingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -277,7 +240,7 @@ export default function AdminPage() {
             System Users
           </CardTitle>
           <CardDescription>
-            View and search system users. Users removed from this view are for this session only and can still log in if they are hardcoded system users. Newly created users are conceptual and only exist for this session.
+            View and search system users. Users removed from this view are for this session only and can still log in if they are hardcoded system users. Newly created users are conceptual and only exist for this session. Permissions are based on role.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -303,9 +266,7 @@ export default function AdminPage() {
                   <TableRow>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Upload</TableHead>
-                    <TableHead>Review</TableHead>
-                    <TableHead>Approve</TableHead>
+                    {/* Permission columns (Upload, Review, Approve) removed */}
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -316,9 +277,7 @@ export default function AdminPage() {
                         {user.email} {user.isSystemUser && <Badge variant="outline" className="ml-2">System</Badge>}
                       </TableCell>
                       <TableCell><Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge></TableCell>
-                      <TableCell>{user.canUploadDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
-                      <TableCell>{user.canReviewDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
-                      <TableCell>{user.canApproveMedication ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
+                      {/* Permission cells (CheckSquare/XCircle) removed */}
                       <TableCell className="space-x-2">
                         <Button variant="destructive" size="icon" onClick={() => handleOpenDeleteConfirm(user)} aria-label={`Delete user ${user.email}`}>
                           <Trash2 className="h-4 w-4" />
@@ -362,4 +321,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

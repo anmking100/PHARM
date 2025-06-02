@@ -4,7 +4,6 @@
 import type { NewUserFormData, UserRole, ConceptualUser } from '@/lib/types';
 
 // Define HARDCODED_USERS_FOR_ADMIN_VIEW directly here for use in getSystemUsers
-// This avoids exporting it from a 'use server' context in login/actions.ts
 const HARDCODED_USERS_FOR_ADMIN_VIEW: Record<string, { password?: string, role: UserRole }> = {
   'admin@example.com': { password: 'password123', role: 'admin' },
   'pharmacist@example.com': { password: 'password123', role: 'pharmacist' },
@@ -52,7 +51,7 @@ export async function getSystemUsers(): Promise<ConceptualUser[]> {
 
 
 export async function createUserWithRole(
-  userData: NewUserFormData
+  userData: NewUserFormData // userData will no longer contain explicit permission fields
 ): Promise<{ 
   success: boolean; 
   message: string; 
@@ -77,21 +76,44 @@ export async function createUserWithRole(
     return { success: false, message: 'Password must be at least 6 characters.' };
   }
 
+  // Determine permissions based on role
+  let canUploadDocs = false;
+  let canReviewDocs = false;
+  let canApproveMedication = false;
+
+  switch (userData.role) {
+    case 'admin':
+      canUploadDocs = true;
+      canReviewDocs = true;
+      canApproveMedication = true;
+      break;
+    case 'pharmacist':
+      canUploadDocs = true;
+      canReviewDocs = true;
+      canApproveMedication = true;
+      break;
+    case 'technician':
+      canUploadDocs = true; // Technicians can upload
+      canReviewDocs = false;
+      canApproveMedication = false;
+      break;
+  }
+
   // Conceptual user creation (not interacting with Firebase)
   try {
     const mockUserId = `mock_user_${Date.now()}`;
     console.log(`[AdminAction] Conceptual user ${userData.email} with role ${userData.role} created with ID: ${mockUserId}.`);
-    console.log(`[AdminAction] Permissions: Upload=${userData.canUploadDocs}, Review=${userData.canReviewDocs}, Approve=${userData.canApproveMedication}`);
+    console.log(`[AdminAction] Derived Permissions: Upload=${canUploadDocs}, Review=${canReviewDocs}, Approve=${canApproveMedication}`);
     
     return { 
       success: true, 
-      message: `User ${userData.email} (${userData.role}) conceptually created with specified permissions. This user is added to the admin view for this session only.`,
+      message: `User ${userData.email} (${userData.role}) conceptually created with default permissions for their role. This user is added to the admin view for this session only.`,
       userId: mockUserId,
       email: userData.email,
       role: userData.role,
-      canUploadDocs: userData.canUploadDocs,
-      canReviewDocs: userData.canReviewDocs,
-      canApproveMedication: userData.canApproveMedication,
+      canUploadDocs: canUploadDocs,
+      canReviewDocs: canReviewDocs,
+      canApproveMedication: canApproveMedication,
       isSystemUser: false, // Newly created users are not system users
     };
 

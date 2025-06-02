@@ -29,16 +29,18 @@ export interface NewUserFormData {
   email: string;
   role: UserRole;
   password?: string; // Password for conceptual user creation by admin
-  canUploadDocs?: boolean;
-  canReviewDocs?: boolean;
-  canApproveMedication?: boolean;
+  // Permission fields removed from here as they are no longer directly set in the form
 }
 
 // Conceptual user stored in AdminPage state
 export interface ConceptualUser extends NewUserFormData {
   id: string;
   isSystemUser?: boolean; // Flag to identify if the user is from the hardcoded list
-  // email, role, password, canUploadDocs, canReviewDocs, canApproveMedication are inherited
+  // Explicit permission fields still exist here as they are set by actions based on role
+  canUploadDocs?: boolean;
+  canReviewDocs?: boolean;
+  canApproveMedication?: boolean;
+  // email, role, password are inherited
 }
 
 export interface ExtractedDataFormProps {
@@ -53,4 +55,3 @@ export interface ExtractedDataFormProps {
   isTechnicianView?: boolean;
   isAdmin?: boolean; // Added for admin override capabilities
 }
-
