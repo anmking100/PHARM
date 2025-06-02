@@ -82,10 +82,12 @@ export async function createUserWithRole(
       errorMessage = 'This email address is already in use.';
     } else if (error.code === 'auth/invalid-password') {
       errorMessage = 'Password must be at least 6 characters long.';
+    } else if (error.message && error.message.toLowerCase().includes("failed to fetch a valid google oauth2 access token")) {
+        errorMessage = `Firebase Admin SDK Authentication Error: Could not fetch a valid OAuth2 access token. This often means an issue with your GOOGLE_APPLICATION_CREDENTIALS environment variable or the service account key. Please verify it's correctly set to a valid service account JSON file path and restart your server. Original error: ${error.message}`;
     } else if (error.message && error.message.toLowerCase().includes("the default firebase app does not exist")) {
-        errorMessage = "Firebase Admin SDK not properly initialized. User creation failed. Check server logs for initialization errors and ensure GOOGLE_APPLICATION_CREDENTIALS is set and server restarted.";
+        errorMessage = "Firebase Admin SDK not properly initialized: The default Firebase app does not exist. User creation failed. Check server logs for initialization errors from 'src/lib/firebase/admin.ts' and ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly and the server restarted.";
     } else if (error.message && error.message.toLowerCase().includes("must initialize app")) {
-        errorMessage = "Firebase Admin SDK not initialized. User creation failed. Check server logs and ensure GOOGLE_APPLICATION_CREDENTIALS is set and server restarted.";
+        errorMessage = "Firebase Admin SDK not initialized. User creation failed. Check server logs from 'src/lib/firebase/admin.ts' and ensure GOOGLE_APPLICATION_CREDENTIALS is set and server restarted.";
     } else if (error.message) {
         // If no specific code matched, but there's an error message, use it.
         errorMessage = `Firebase user creation failed: ${error.message}`;
@@ -99,4 +101,3 @@ export async function createUserWithRole(
     };
   }
 }
-
