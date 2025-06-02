@@ -1,16 +1,18 @@
 
 "use client";
 
-import type { ChangeEvent } from 'react';
+import React, { type ChangeEvent, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2, PackageCheck, ClipboardList, Clock } from "lucide-react";
+import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2, PackageCheck, ClipboardList, Clock, Pill, ListChecks } from "lucide-react";
 import type { MedicationData, MedicationStatus } from "@/lib/types";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { getDrugInfo, type GetDrugInfoOutput } from '@/ai/flows/get-drug-info-flow';
+import { useToast } from '@/hooks/use-toast';
 
 interface ExtractedDataFormProps {
   data: MedicationData | null;
@@ -42,11 +44,45 @@ export default function ExtractedDataForm({
   currentStatus,
   isTechnicianView
 }: ExtractedDataFormProps) {
+  const { toast } = useToast();
+  const [isFetchingSideEffects, setIsFetchingSideEffects] = useState(false);
+  const [sideEffectsData, setSideEffectsData] = useState<GetDrugInfoOutput | null>(null);
+  const [sideEffectsError, setSideEffectsError] = useState<string | null>(null);
   
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     onDataChange(name as keyof MedicationData, type === 'checkbox' ? checked : value);
+     if (name === "medicationName") {
+      setSideEffectsData(null); // Reset side effects if medication name changes
+      setSideEffectsError(null);
+    }
   };
+
+  const handleFetchSideEffects = async () => {
+    if (!data?.medicationName || !canEdit) return;
+
+    setIsFetchingSideEffects(true);
+    setSideEffectsData(null);
+    setSideEffectsError(null);
+
+    try {
+      const result = await getDrugInfo({ medicationName: data.medicationName });
+      setSideEffectsData(result);
+      if (result.sideEffects.includes('No side effect information available')) {
+         toast({ variant: "default", title: "Drug Info", description: "No specific side effects found in mock data." });
+      } else {
+         toast({ title: "Drug Info", description: `Side effects for ${data.medicationName} fetched.` });
+      }
+    } catch (error: any) {
+      console.error("Error fetching side effects:", error);
+      const errorMessage = error.message || "Failed to fetch side effects.";
+      setSideEffectsError(errorMessage);
+      toast({ variant: "destructive", title: "Drug Info Error", description: errorMessage });
+    } finally {
+      setIsFetchingSideEffects(false);
+    }
+  };
+
 
   if (isProcessingAi) {
     return (
@@ -84,9 +120,9 @@ export default function ExtractedDataForm({
     );
   }
 
-  const formFields: Array<{ id: keyof MedicationData; label: string; type?: string, placeholder?: string }> = [
+  const formFields: Array<{ id: keyof MedicationData; label: string; type?: string, placeholder?: string, hasSideEffectButton?: boolean }> = [
     { id: "patientName", label: "Patient Name", placeholder: "e.g., John Doe" },
-    { id: "medicationName", label: "Medication Name", placeholder: "e.g., Amoxicillin" },
+    { id: "medicationName", label: "Medication Name", placeholder: "e.g., Amoxicillin", hasSideEffectButton: true },
     { id: "dosage", label: "Dosage", placeholder: "e.g., 250mg" },
     { id: "frequency", label: "Frequency", placeholder: "e.g., Twice a day" },
     { id: "prescribingDoctor", label: "Prescribing Doctor", placeholder: "e.g., Dr. Smith" },
@@ -146,21 +182,76 @@ export default function ExtractedDataForm({
 
         <form className="space-y-4">
           {formFields.map(field => (
-            <div key={field.id} className="grid gap-1.5">
-              <Label htmlFor={field.id} className="font-medium">
-                {field.label}
-                {canEdit && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
-              </Label>
-              <Input
-                id={field.id}
-                name={field.id}
-                type={field.type || "text"}
-                value={data[field.id] as string}
-                onChange={handleInputChange}
-                placeholder={field.placeholder}
-                readOnly={!canEdit}
-                className={(canEdit && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}
-              />
+            <div key={field.id}>
+              <div className="grid gap-1.5">
+                <Label htmlFor={field.id} className="font-medium">
+                  {field.label}
+                  {canEdit && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id={field.id}
+                    name={field.id}
+                    type={field.type || "text"}
+                    value={data[field.id] as string}
+                    onChange={handleInputChange}
+                    placeholder={field.placeholder}
+                    readOnly={!canEdit}
+                    className={`flex-grow ${(canEdit && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
+                  />
+                  {field.hasSideEffectButton && canEdit && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFetchSideEffects}
+                      disabled={isFetchingSideEffects || !data?.medicationName}
+                      aria-label="Fetch side effects"
+                    >
+                      {isFetchingSideEffects ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pill className="h-4 w-4" />}
+                      <span className="ml-2 hidden sm:inline">Side Effects</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && (
+                <div className="mt-2">
+                  {isFetchingSideEffects && (
+                    <Alert variant="default" className="bg-muted/50">
+                      <Loader2 className="h-4 w-4 animate-spin"/>
+                      <AlertTitle>Loading Side Effects...</AlertTitle>
+                      <AlertDescription>Fetching information for {data.medicationName}.</AlertDescription>
+                    </Alert>
+                  )}
+                  {sideEffectsError && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Error Fetching Side Effects</AlertTitle>
+                      <AlertDescription>{sideEffectsError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {sideEffectsData && !isFetchingSideEffects && (
+                    <Alert variant="default" className="bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-700">
+                       <ListChecks className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <AlertTitle className="text-blue-700 dark:text-blue-300">
+                        Common Side Effects for {data.medicationName || 'this medication'}:
+                      </AlertTitle>
+                      <AlertDescription>
+                        {sideEffectsData.sideEffects.length > 0 && !sideEffectsData.sideEffects.includes('No side effect information available') ? (
+                          <ul className="list-disc list-inside text-sm text-muted-foreground">
+                            {sideEffectsData.sideEffects.map((effect, index) => (
+                              <li key={index}>{effect}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">{sideEffectsData.sideEffects[0] || 'No information found.'}</p>
+                        )}
+                         <p className="text-xs text-muted-foreground mt-2">(Mock data. Not for clinical use.)</p>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           <div className="flex items-center space-x-2 pt-2">
@@ -170,7 +261,7 @@ export default function ExtractedDataForm({
                 type="checkbox"
                 checked={data.isHandwritten}
                 onChange={handleInputChange}
-                className="h-4 w-4 accent-primary"
+                className="h-4 w-4 accent-primary" // Using accent-primary for checkbox color
                 disabled={!canEdit}
               />
             <Label htmlFor="isHandwritten" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">

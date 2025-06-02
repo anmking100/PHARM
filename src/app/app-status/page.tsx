@@ -6,19 +6,32 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Settings, DatabaseZap } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Settings, DatabaseZap, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface StatusItemProps {
   label: string;
-  status: 'active' | 'inactive' | 'error';
+  status: 'active' | 'inactive' | 'error' | 'active (mocked)';
   description?: string;
   icon?: React.ElementType;
 }
 
 const StatusIndicator: React.FC<StatusItemProps> = ({ label, status, description, icon }) => {
-  const IconDisplay = icon || (status === 'active' ? CheckCircle : status === 'error' ? XCircle : Settings);
-  const color = status === 'active' ? 'text-green-500' : status === 'error' ? 'text-red-500' : 'text-yellow-500';
+  const getStatusDetails = () => {
+    switch (status) {
+      case 'active':
+      case 'active (mocked)':
+        return { iconDisplay: icon || CheckCircle, color: 'text-green-500' };
+      case 'error':
+        return { iconDisplay: icon || XCircle, color: 'text-red-500' };
+      case 'inactive':
+      default:
+        return { iconDisplay: icon || Settings, color: 'text-yellow-500' };
+    }
+  };
+
+  const { iconDisplay: IconDisplay, color } = getStatusDetails();
+
 
   return (
     <div className="flex items-center justify-between p-3 border-b last:border-b-0">
@@ -72,14 +85,14 @@ export default function AppStatusPage() {
 
   // Conceptual status items
   const statusItems: StatusItemProps[] = [
-    { label: 'AI Fax Processing Service', status: 'active', description: 'Genkit flow for data extraction.' },
+    { label: 'AI Fax Processing Service', status: 'active', description: 'Genkit flow for data extraction from faxes.' },
     { 
       label: 'External API Integrations', 
-      status: 'inactive', 
-      description: 'Conceptual: Drug Information Database API for interactions, side effects, etc. Not yet implemented.',
-      icon: DatabaseZap
+      status: 'active (mocked)', 
+      description: 'Conceptual: Mock Drug Information API for fetching side effects. Currently returns hardcoded data.',
+      icon: ListChecks // Changed icon to ListChecks
     },
-    { label: 'Automated Fax Intake', status: 'error', description: 'Conceptual - Fax polling service offline.' },
+    { label: 'Automated Fax Intake', status: 'error', description: 'Conceptual - Fax polling service simulated as offline.' },
   ];
 
   return (
