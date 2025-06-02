@@ -13,7 +13,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogDescription, DialogFooter, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithRole } from "./actions"; // Conceptual user creation
+import { createUserWithRole } from "./actions"; 
 import type { UserRole, NewUserFormData } from "@/lib/types";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
@@ -23,8 +23,6 @@ interface DisplayUser {
   role: UserRole;
 }
 
-const initialUsers: DisplayUser[] = [];
-
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
@@ -32,7 +30,7 @@ export default function AdminPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [displayedUsers, setDisplayedUsers] = useState<DisplayUser[]>(initialUsers);
+  const [displayedUsers, setDisplayedUsers] = useState<DisplayUser[]>([]);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
@@ -81,7 +79,6 @@ export default function AdminPage() {
 
     setIsSubmittingUser(true);
     try {
-      // Uses conceptual createUserWithRole, no Firebase interaction
       const result = await createUserWithRole(newUserForm); 
       if (result.success && result.userId && result.email && result.role) {
         setDisplayedUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: result.email as string, role: result.role as UserRole }]);
@@ -98,7 +95,7 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading || (!authUser && !authLoading)) { // Show loader if auth is loading or if not loading but no user (implies redirect is pending)
+  if (authLoading || (!authUser && !authLoading)) {
     console.log('[AdminPage] Auth loading or redirect pending, showing spinner.');
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -108,7 +105,7 @@ export default function AdminPage() {
     );
   }
   
-  if (!authUser || !isAdmin) { // This check runs after loading is complete
+  if (!authUser || !isAdmin) {
      console.log('[AdminPage] User not authenticated as admin, showing access denied or redirecting.');
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
@@ -267,3 +264,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
