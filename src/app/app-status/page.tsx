@@ -72,9 +72,6 @@ export default function AppStatusPage() {
   // Conceptual status items
   const statusItems: StatusItemProps[] = [
     { label: 'AI Fax Processing Service', status: 'active', description: 'Genkit flow for data extraction.' },
-    // { label: 'User Authentication System', status: 'active', description: 'Conceptual local storage based auth.' }, // Removed this item
-    { label: 'Patient Data Storage', status: 'active', description: 'Using LocalStorage for patient records.' },
-    { label: 'Admin Panel Access', status: 'active', description: 'Role-based access control for admin functions.' },
     { label: 'External API Integrations', status: 'inactive', description: 'No external APIs currently in use.' },
     { label: 'Automated Fax Intake', status: 'error', description: 'Conceptual - Fax polling service offline.' },
   ];
