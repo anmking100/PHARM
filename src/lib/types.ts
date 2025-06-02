@@ -37,5 +37,6 @@ export interface NewUserFormData {
 // Conceptual user stored in AdminPage state
 export interface ConceptualUser extends NewUserFormData {
   id: string; 
+  isSystemUser?: boolean; // Flag to identify if the user is from the hardcoded list
   // email, role, password, canUploadDocs, canReviewDocs, canApproveMedication are inherited
 }

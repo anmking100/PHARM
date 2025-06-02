@@ -15,11 +15,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare, Users2, Search, Edit3, Trash2, XCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare, Users2, Search, Edit3, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createUserWithRole, getSystemUsers } from './actions';
 import type { UserRole, NewUserFormData, ConceptualUser } from '@/lib/types';
-import { HARDCODED_USERS_FOR_ADMIN_VIEW } from '../login/actions'; // For checking if user is hardcoded
+// Removed import of HARDCODED_USERS_FOR_ADMIN_VIEW
 
 // Helper icon for XCircle, as it's not directly in lucide-react by that name
 const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -130,13 +130,14 @@ export default function AdminPage() {
 
     if (result.success && result.email && result.role && result.userId) {
       const newConceptualUser: ConceptualUser = {
-        id: result.userId, // Use ID from server action
+        id: result.userId, 
         email: result.email,
         role: result.role,
         password: newUserPassword,
         canUploadDocs: result.canUploadDocs,
         canReviewDocs: result.canReviewDocs,
         canApproveMedication: result.canApproveMedication,
+        isSystemUser: result.isSystemUser, // Should be false
       };
       setSystemUsers(prev => [...prev, newConceptualUser]);
       toast({
@@ -180,7 +181,8 @@ export default function AdminPage() {
   const handleSaveUserChanges = () => {
     if (!editingUser || !editUserForm.role) return;
     
-    const isOriginalHardcoded = Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(editingUser.email);
+    // Use the isSystemUser flag from the user object
+    const isOriginalHardcoded = editingUser.isSystemUser; 
     
     setSystemUsers(prevUsers => 
       prevUsers.map(u => 
@@ -211,7 +213,8 @@ export default function AdminPage() {
   const handleDeleteUser = () => {
     if (!deletingUser) return;
 
-    const isOriginalHardcoded = Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(deletingUser.email);
+    // Use the isSystemUser flag from the user object
+    const isOriginalHardcoded = deletingUser.isSystemUser;
     
     setSystemUsers(prevUsers => prevUsers.filter(u => u.id !== deletingUser.id));
 
@@ -408,7 +411,7 @@ export default function AdminPage() {
                 <TableBody>
                   {filteredUsers.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.email} {Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(user.email) && <Badge variant="outline" className="ml-2">System</Badge>}</TableCell>
+                      <TableCell className="font-medium">{user.email} {user.isSystemUser && <Badge variant="outline" className="ml-2">System</Badge>}</TableCell>
                       <TableCell><Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge></TableCell>
                       <TableCell>{user.canUploadDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
                       <TableCell>{user.canReviewDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
@@ -457,7 +460,7 @@ export default function AdminPage() {
                     <SelectItem value="technician">Technician</SelectItem>
                   </SelectContent>
                 </Select>
-                 {Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(editingUser.email) && editingUser.role !== editUserForm.role && (
+                 {editingUser.isSystemUser && editingUser.role !== editUserForm.role && (
                     <p className="text-xs text-muted-foreground pt-1">Note: Changing role here is for session view only. Original login role is '{editingUser.role}'.</p>
                 )}
               </div>
@@ -511,7 +514,7 @@ export default function AdminPage() {
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
                 This action will remove user <span className="font-semibold">{deletingUser.email}</span> from the admin view for this session. 
-                {Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(deletingUser.email) 
+                {deletingUser.isSystemUser 
                     ? " This user is a system user and can still log in with their original credentials."
                     : " This user was conceptually created and will be removed."
                 }
@@ -528,4 +531,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

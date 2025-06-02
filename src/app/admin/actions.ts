@@ -5,7 +5,7 @@ import type { NewUserFormData, UserRole, ConceptualUser } from '@/lib/types';
 
 // Define HARDCODED_USERS_FOR_ADMIN_VIEW directly here for use in getSystemUsers
 // This avoids exporting it from a 'use server' context in login/actions.ts
-export const HARDCODED_USERS_FOR_ADMIN_VIEW: Record<string, { password?: string, role: UserRole }> = {
+const HARDCODED_USERS_FOR_ADMIN_VIEW: Record<string, { password?: string, role: UserRole }> = {
   'admin@example.com': { password: 'password123', role: 'admin' },
   'pharmacist@example.com': { password: 'password123', role: 'pharmacist' },
   'technician@example.com': { password: 'password123', role: 'technician' },
@@ -14,10 +14,7 @@ export const HARDCODED_USERS_FOR_ADMIN_VIEW: Record<string, { password?: string,
 
 export async function getSystemUsers(): Promise<ConceptualUser[]> {
   return Object.entries(HARDCODED_USERS_FOR_ADMIN_VIEW).map(([email, data]) => {
-    const isPrivileged = data.role === 'admin' || data.role === 'pharmacist';
-    const canUpload = data.role === 'admin' || data.role === 'pharmacist' || data.role === 'technician';
-    
-    // Default permissions based on role
+    // Default permissions based on role for hardcoded users
     let defaultCanUploadDocs = false;
     let defaultCanReviewDocs = false;
     let defaultCanApproveMedication = false;
@@ -34,7 +31,7 @@ export async function getSystemUsers(): Promise<ConceptualUser[]> {
             defaultCanApproveMedication = true;
             break;
         case 'technician':
-            defaultCanUploadDocs = true;
+            defaultCanUploadDocs = true; // Technicians can upload
             defaultCanReviewDocs = false; 
             defaultCanApproveMedication = false;
             break;
@@ -44,10 +41,11 @@ export async function getSystemUsers(): Promise<ConceptualUser[]> {
       id: email, // Use email as ID for hardcoded users
       email: email,
       role: data.role,
-      password: data.password, // Store password conceptually, not displayed
+      password: data.password, 
       canUploadDocs: defaultCanUploadDocs,
       canReviewDocs: defaultCanReviewDocs,
       canApproveMedication: defaultCanApproveMedication,
+      isSystemUser: true, // Mark as a system user
     };
   });
 }
@@ -63,7 +61,8 @@ export async function createUserWithRole(
   role?: UserRole;
   canUploadDocs?: boolean;
   canReviewDocs?: boolean;
-  canApproveMedication?: boolean; 
+  canApproveMedication?: boolean;
+  isSystemUser?: boolean;
 }> {
   console.log('[AdminAction] Attempting to create user (conceptual):', userData);
 
@@ -93,6 +92,7 @@ export async function createUserWithRole(
       canUploadDocs: userData.canUploadDocs,
       canReviewDocs: userData.canReviewDocs,
       canApproveMedication: userData.canApproveMedication,
+      isSystemUser: false, // Newly created users are not system users
     };
 
   } catch (error: any) {
