@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, Users, UserPlus, Settings, ShieldAlert, Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
+import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle } from "lucide-react"; // ShieldAlert removed
 import Link from "next/link";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+// useAuth, useRouter removed
+// import { useAuth } from "@/context/AuthContext";
+// import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { createUserWithRole } from "./actions";
 import type { AppUser, UserRole, NewUserFormData } from "@/lib/types";
@@ -26,8 +27,8 @@ const initialUsers: AppUser[] = [
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  const { user, isAdmin, loading: authLoading } = useAuth();
-  const router = useRouter();
+  // const { user, isAdmin, loading: authLoading } = useAuth(); // Removed useAuth
+  // const router = useRouter(); // Removed
   const { toast } = useToast();
 
   const [users, setUsers] = useState<AppUser[]>(initialUsers);
@@ -40,17 +41,9 @@ export default function AdminPage() {
     role: 'technician',
   });
 
-  // Log initial values from context on each render
-  console.log('[AdminPage] Render cycle. authLoading:', authLoading, 'user:', user?.email, 'isAdmin:', isAdmin);
+  // useEffect for redirection removed
+  // console.log('[AdminPage] Render cycle. Auth checks removed (hardcoded admin).');
 
-  useEffect(() => {
-    // This effect handles redirection if the user is not authenticated *after* loading is complete.
-    console.log('[AdminPage] useEffect triggered. authLoading:', authLoading, 'user:', user?.email, 'isAdmin:', isAdmin);
-    if (!authLoading && !user) {
-      console.log('[AdminPage] useEffect: No user and not loading. Redirecting to login.');
-      router.push('/login?redirect=/admin');
-    }
-  }, [authLoading, user, router]); // Dependencies: only redirect if authLoading or user changes
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -69,6 +62,7 @@ export default function AdminPage() {
     }
     setIsSubmittingUser(true);
     try {
+      // createUserWithRole is still conceptual
       const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
       if (result.success && result.userId) {
         setUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: newUserForm.email, role: newUserForm.role }]);
@@ -85,50 +79,8 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading) {
-    console.log('[AdminPage] Render: authLoading is true. Displaying loading spinner.');
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-            <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Loading Admin Dashboard...</p>
-        </div>
-    );
-  }
-  
-  // At this point, authLoading is false.
-  console.log('[AdminPage] Render: authLoading is false.');
-
-  if (!user) {
-     // This case should ideally be handled by the useEffect redirecting.
-     // If we reach here, it's a brief state before redirection or if useEffect hasn't run yet.
-     console.log('[AdminPage] Render: authLoading is false, but no user. Displaying redirecting message.');
-     return (
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-             <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Redirecting to login...</p>
-        </div>
-    );
-  }
-  
-  // At this point, authLoading is false AND user is present.
-  console.log('[AdminPage] Render: authLoading is false, user is present. User:', user.email, 'Checking isAdmin:', isAdmin);
-
-  if (!isAdmin) {
-     console.log('[AdminPage] Render: User is present, authLoading is false, BUT isAdmin is false. Displaying Access Denied.');
-     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
-         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-        <p className="text-muted-foreground">You do not have the necessary permissions to view this page.</p>
-        <Button asChild className="mt-6">
-          <Link href="/">Go to Homepage</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  // If we reach here, authLoading is false, user is present, AND isAdmin is true.
-  console.log('[AdminPage] Render: All checks passed (authLoading false, user present, isAdmin true). Rendering admin dashboard content.');
+  // All loading, user, and isAdmin checks are removed. The page content is rendered directly.
+  console.log('[AdminPage] Rendering admin dashboard content (hardcoded admin access).');
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -273,6 +225,9 @@ export default function AdminPage() {
         <h3 className="text-lg font-semibold mb-3 text-primary flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Next Steps & Considerations:</h3>
         <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2">
             <li>
+              <strong>Authentication Removed:</strong> The application now assumes a single admin user is always active. For a real app, re-implement Firebase Authentication.
+            </li>
+            <li>
               <strong>Secure User Creation:</strong> Implement actual user creation and role assignment using Firebase Admin SDK in a secure backend environment (e.g., Firebase Callable Function or a Next.js API route protected for admins). The current `createUserWithRole` server action is conceptual.
             </li>
             <li>
@@ -284,13 +239,10 @@ export default function AdminPage() {
                 </ul>
             </li>
             <li>
-              <strong>Fetch Real Users:</strong> Replace mock user data with actual users fetched from Firebase Authentication (requires Admin SDK for full list or careful client-side management for limited views).
+              <strong>Fetch Real Users:</strong> Replace mock user data with actual users fetched from Firebase Authentication (requires Admin SDK for full list or careful client-side management for limited views) if auth is re-added.
             </li>
             <li>
-              <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control once roles are implemented.
-            </li>
-            <li>
-              <strong>Admin Role Check:</strong> The app now checks for `admin@example.com` (hardcoded) or `customClaims.admin === true` on the logged-in user. For custom claims, you'll need to set this claim for your admin users.
+              <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control once roles are implemented with real authentication.
             </li>
         </ul>
       </div>
