@@ -26,7 +26,7 @@ interface DisplayUser {
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  const { user: authUser, isAdmin, loading: authLoading } = useAuth();
+  const { user: authUser, isAdmin, loading: authLoading, role: authUserRole } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -43,7 +43,7 @@ export default function AdminPage() {
   useEffect(() => {
     console.log('[AdminPage] Auth state check. AuthLoading:', authLoading, 'AuthUser:', authUser?.email, 'IsAdmin:', isAdmin);
     if (!authLoading) {
-      if (!authUser || !isAdmin) {
+      if (!authUser || authUserRole !== 'admin') { // Check role directly from auth context
         console.log('[AdminPage] Not admin or not logged in, redirecting to /login.');
         router.replace('/login?redirect=/admin');
          toast({
@@ -52,10 +52,10 @@ export default function AdminPage() {
             description: "You do not have permission to access the admin panel.",
         });
       } else {
-        console.log('[AdminPage] Admin access confirmed.');
+        console.log('[AdminPage] Admin access confirmed for:', authUser.email);
       }
     }
-  }, [authUser, isAdmin, authLoading, router, toast]);
+  }, [authUser, authUserRole, isAdmin, authLoading, router, toast]);
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -105,7 +105,7 @@ export default function AdminPage() {
     );
   }
   
-  if (!authUser || !isAdmin) {
+  if (!authUser || authUserRole !== 'admin') {
      console.log('[AdminPage] User not authenticated as admin, showing access denied or redirecting.');
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
