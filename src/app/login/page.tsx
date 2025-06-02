@@ -11,14 +11,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, LogIn, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-const HARDCODED_ADMIN_EMAIL_EXPECTED = 'admin@example.com';
-const HARDCODED_ADMIN_PASSWORD_EXPECTED = 'password123'; // Still check password for conceptual login
+import { signInUser } from './actions'; // Server action for checking credentials
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAdmin, loading: authLoading, loginAdmin } = useAuth();
+  const { user, loading: authLoading, loginUser } = useAuth();
   const { toast } = useToast();
 
   const [email, setEmail] = useState('');
@@ -27,18 +25,13 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    console.log('[LoginPage] useEffect check. User:', user?.email, 'AuthLoading:', authLoading, 'IsAdmin:', isAdmin);
-    if (!authLoading && user && isAdmin) {
-      const redirectUrl = searchParams.get('redirect') || '/admin'; // Default to admin if admin logs in
-      console.log(`[LoginPage] Admin logged in. Redirecting to ${redirectUrl}`);
-      router.replace(redirectUrl);
-    } else if (!authLoading && user && !isAdmin) {
-      // This case should not happen with the current setup if only admin can "login"
-      const redirectUrl = searchParams.get('redirect') || '/';
-      console.log(`[LoginPage] Non-admin user somehow logged in. Redirecting to ${redirectUrl}`);
+    console.log('[LoginPage] useEffect check. User:', user?.email, 'AuthLoading:', authLoading);
+    if (!authLoading && user) {
+      const redirectUrl = searchParams.get('redirect') || (user.role === 'admin' ? '/admin' : '/');
+      console.log(`[LoginPage] User logged in (${user.role}). Redirecting to ${redirectUrl}`);
       router.replace(redirectUrl);
     }
-  }, [user, isAdmin, authLoading, router, searchParams]);
+  }, [user, authLoading, router, searchParams]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -51,15 +44,23 @@ export default function LoginPage() {
       return;
     }
 
-    if (email.toLowerCase() === HARDCODED_ADMIN_EMAIL_EXPECTED && password === HARDCODED_ADMIN_PASSWORD_EXPECTED) {
-      loginAdmin(); // This now sets the admin state in AuthContext
-      toast({ title: 'Admin Login Successful', description: 'Welcome back, Admin!' });
-      // useEffect will handle the redirect
-    } else {
-      setError('Invalid credentials. Only the hardcoded admin can log in.');
-      toast({ variant: 'destructive', title: 'Login Failed', description: 'Invalid credentials.' });
+    try {
+      const result = await signInUser({ email, password });
+      if (result.success && result.role && result.email) {
+        loginUser(result.email, result.role); // Update AuthContext
+        toast({ title: 'Login Successful', description: `Welcome back, ${result.role}!` });
+        // useEffect will handle the redirect
+      } else {
+        setError(result.error || 'Invalid credentials.');
+        toast({ variant: 'destructive', title: 'Login Failed', description: result.error || 'Invalid credentials.' });
+      }
+    } catch (e: any) {
+      console.error('[LoginPage] Login submit error:', e);
+      setError('An unexpected error occurred during login.');
+      toast({ variant: 'destructive', title: 'Login Error', description: 'An unexpected error occurred.' });
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   if (authLoading && !user) {
@@ -71,7 +72,7 @@ export default function LoginPage() {
     );
   }
 
-  if (user && isAdmin) {
+  if (user) { // If user is already set (e.g. by AuthContext restore or after successful login)
      return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -86,10 +87,10 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold tracking-tight text-center flex items-center justify-center gap-2">
             <LogIn className="h-6 w-6 text-primary" />
-            Admin Login
+            User Login
           </CardTitle>
           <CardDescription className="text-center">
-            Enter admin credentials to access the system.
+            Enter your credentials to access the system.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,7 +107,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="user@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -135,8 +136,10 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="text-center text-xs text-muted-foreground">
-          <p>Use admin@example.com / password123</p>
+        <CardFooter className="text-center text-xs text-muted-foreground space-y-1 flex flex-col">
+          <p>Hint: admin@example.com / password123</p>
+          <p>pharmacist@example.com / password123</p>
+          <p>technician@example.com / password123</p>
         </CardFooter>
       </Card>
     </div>

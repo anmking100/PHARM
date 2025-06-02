@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ChangeEvent } from 'react';
@@ -25,7 +26,7 @@ export default function FaxUploadForm({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6 border rounded-lg shadow-sm bg-card">
       <div>
         <Label htmlFor="fax-upload" className="text-lg font-medium">Upload Fax Document</Label>
         <p className="text-sm text-muted-foreground">Select an image file (e.g., PNG, JPG) representing the fax.</p>

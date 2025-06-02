@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ChangeEvent } from 'react';
@@ -6,17 +7,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2 } from "lucide-react";
-import type { MedicationData } from "@/lib/types";
+import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2, PackageCheck, ClipboardList } from "lucide-react";
+import type { MedicationData, MedicationStatus } from "@/lib/types";
+import { Badge } from '@/components/ui/badge';
 
 interface ExtractedDataFormProps {
   data: MedicationData | null;
-  onDataChange: (fieldName: keyof MedicationData, value: string | boolean) => void;
+  onDataChange: (fieldName: keyof MedicationData, value: string | boolean | MedicationStatus) => void;
   onSaveChanges: () => void;
+  onMarkAsPacked: () => void;
   isProcessingAi: boolean;
+  canEdit: boolean;
+  canPack: boolean;
+  currentStatus?: MedicationStatus;
 }
 
-export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, isProcessingAi }: ExtractedDataFormProps) {
+const statusDisplay: Record<MedicationStatus, string> = {
+  pending_extraction: "Pending Extraction",
+  pending_review: "Pending Review",
+  reviewed: "Reviewed",
+  packed: "Packed",
+};
+
+export default function ExtractedDataForm({ 
+  data, 
+  onDataChange, 
+  onSaveChanges, 
+  onMarkAsPacked,
+  isProcessingAi,
+  canEdit,
+  canPack,
+  currentStatus
+}: ExtractedDataFormProps) {
   
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -53,7 +75,7 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">No data extracted yet. Upload and process a fax to see results here.</p>
+          <p className="text-muted-foreground">No data extracted yet. {canEdit ? "Upload and process a fax" : "Awaiting fax processing"} to see results here.</p>
         </CardContent>
       </Card>
     );
@@ -67,18 +89,37 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
     { id: "prescribingDoctor", label: "Prescribing Doctor", placeholder: "e.g., Dr. Smith" },
   ];
 
+  const getStatusBadgeVariant = (status?: MedicationStatus) => {
+    switch (status) {
+      case 'pending_review': return 'destructive';
+      case 'reviewed': return 'secondary';
+      case 'packed': return 'default'; // primary color
+      default: return 'outline';
+    }
+  };
+
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <Edit className="h-6 w-6 text-primary" />
-          Extracted Medication Data
-        </CardTitle>
-        <CardDescription>Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention.</CardDescription>
+        <div className="flex justify-between items-start">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            {canEdit ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
+            Extracted Medication Data
+          </CardTitle>
+          {currentStatus && (
+             <Badge variant={getStatusBadgeVariant(currentStatus)} className="text-sm">
+                {statusDisplay[currentStatus] || "Unknown Status"}
+            </Badge>
+          )}
+        </div>
+        <CardDescription>
+          {canEdit ? "Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention." : "View extracted prescription details."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {data.isHandwritten && (
-          <Alert variant="destructive">
+          <Alert variant={canEdit ? "destructive" : "default"}>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Handwritten Prescription Detected</AlertTitle>
             <AlertDescription>
@@ -86,23 +127,22 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
             </AlertDescription>
           </Alert>
         )}
-         {!data.isHandwritten && Object.values(data).some(val => val === "") && (
+         {!data.isHandwritten && Object.values(data).some(val => val === "" && typeof val === 'string') && (
           <Alert variant="default" className="bg-accent/10 border-accent/50 text-accent-foreground">
             <Info className="h-4 w-4 text-accent" />
             <AlertTitle>Missing Information</AlertTitle>
             <AlertDescription>
-              Some fields could not be extracted. Please review and complete the missing information.
+              Some fields could not be extracted. {canEdit ? "Please review and complete the missing information." : "Awaiting review."}
             </AlertDescription>
           </Alert>
         )}
-
 
         <form className="space-y-4">
           {formFields.map(field => (
             <div key={field.id} className="grid gap-1.5">
               <Label htmlFor={field.id} className="font-medium">
                 {field.label}
-                {(data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
+                {canEdit && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
               </Label>
               <Input
                 id={field.id}
@@ -111,7 +151,8 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
                 value={data[field.id] as string}
                 onChange={handleInputChange}
                 placeholder={field.placeholder}
-                className={data[field.id] === "" ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}
+                readOnly={!canEdit}
+                className={(canEdit && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}
               />
             </div>
           ))}
@@ -123,6 +164,7 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
                 checked={data.isHandwritten}
                 onChange={handleInputChange}
                 className="h-4 w-4 accent-primary"
+                disabled={!canEdit}
               />
             <Label htmlFor="isHandwritten" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               Is Handwritten?
@@ -130,11 +172,19 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
           </div>
         </form>
       </CardContent>
-      <CardFooter>
-        <Button onClick={onSaveChanges} className="w-full sm:w-auto ml-auto" variant="default">
-          <Save className="mr-2 h-4 w-4" />
-          Save Changes (Conceptual)
-        </Button>
+      <CardFooter className="flex justify-end gap-2">
+        {canEdit && (
+          <Button onClick={onSaveChanges} variant="default" disabled={currentStatus === 'packed'}>
+            <Save className="mr-2 h-4 w-4" />
+            {currentStatus === 'packed' ? 'Prescription Packed' : 'Save Changes & Mark Reviewed'}
+          </Button>
+        )}
+        {canPack && (
+          <Button onClick={onMarkAsPacked} variant="default" disabled={currentStatus === 'packed' || currentStatus === 'pending_review'}>
+            <PackageCheck className="mr-2 h-4 w-4" />
+            {currentStatus === 'packed' ? 'Already Packed' : 'Mark as Packed'}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

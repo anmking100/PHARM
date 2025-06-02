@@ -1,42 +1,44 @@
 
 'use server';
 
-// This file is no longer strictly necessary for the hardcoded admin login
-// as the logic is now primarily handled in the LoginPage client component
-// and AuthContext. However, it can be kept for structure or future use
-// if server-side checks are reintroduced.
+import type { UserRole } from '@/lib/types';
 
 interface SignInCredentials {
   email: string;
-  password?: string;
+  password?: string; // Password remains for the form, but logic will primarily use email for role
 }
 
 interface SignInResult {
   success: boolean;
-  isHardcodedAdmin?: boolean; // This will always be true if success
+  role?: UserRole;
   error?: string;
+  email?: string;
 }
 
-const HARDCODED_ADMIN_EMAIL = 'admin@example.com';
-const HARDCODED_ADMIN_PASSWORD = 'password123';
+// Hardcoded credentials map to roles
+const HARDCODED_USERS: Record<string, { password?: string, role: UserRole }> = {
+  'admin@example.com': { password: 'password123', role: 'admin' },
+  'pharmacist@example.com': { password: 'password123', role: 'pharmacist' },
+  'technician@example.com': { password: 'password123', role: 'technician' },
+};
 
 export async function signInUser(credentials: SignInCredentials): Promise<SignInResult> {
-  console.log('[signInUser Action] Conceptual check for hardcoded admin:', credentials.email);
+  console.log('[signInUser Action] Attempting to sign in user:', credentials.email);
 
-  if (!credentials.password) {
-    return { success: false, error: "Password is required." };
-  }
+  const lowercasedEmail = credentials.email.toLowerCase();
+  const hardcodedUser = HARDCODED_USERS[lowercasedEmail];
 
-  if (
-    credentials.email.toLowerCase() === HARDCODED_ADMIN_EMAIL.toLowerCase() &&
-    credentials.password === HARDCODED_ADMIN_PASSWORD
-  ) {
-    console.log('[signInUser Action] Hardcoded admin credentials match.');
+  if (hardcodedUser && credentials.password === hardcodedUser.password) {
+    console.log(`[signInUser Action] Hardcoded user match: ${lowercasedEmail}, Role: ${hardcodedUser.role}`);
     return {
       success: true,
-      isHardcodedAdmin: true,
+      role: hardcodedUser.role,
+      email: lowercasedEmail,
     };
   }
 
+  // Fallback for any other credentials - for now, treat as invalid.
+  // Could be extended for Firebase auth later.
+  console.log('[signInUser Action] Invalid credentials or user not found in hardcoded list.');
   return { success: false, error: 'Invalid credentials.' };
 }

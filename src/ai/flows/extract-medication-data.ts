@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import type { MedicationStatus } from '@/lib/types';
 import {z} from 'genkit';
 
 const ExtractMedicationDataInputSchema = z.object({
@@ -27,6 +28,7 @@ const ExtractMedicationDataOutputSchema = z.object({
   frequency: z.string().describe('The frequency of the medication.').optional().default(''),
   prescribingDoctor: z.string().describe('The name of the prescribing doctor.').optional().default(''),
   isHandwritten: z.boolean().describe('Whether the prescription is handwritten.').optional().default(false),
+  status: z.custom<MedicationStatus>().describe('The current status of the prescription.').optional().default('pending_review'),
 });
 export type ExtractMedicationDataOutput = z.infer<typeof ExtractMedicationDataOutputSchema>;
 
@@ -64,10 +66,11 @@ const extractMedicationDataPrompt = ai.definePrompt({
   - Prescribing Doctor: The name of the doctor who prescribed the medication.
 
   Based on the image, determine if the prescription appears to be handwritten. Use the 'shouldInterpretHandwriting' tool if needed to determine if the fax contains handwriting.
+  Set the initial status of the prescription to 'pending_review'.
 
   Here is the fax image: {{media url=faxDataUri}}
 
-  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields.
+  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields. Ensure 'status' is set to 'pending_review'.
   `,
 });
 
@@ -80,8 +83,6 @@ const extractMedicationDataFlow = ai.defineFlow(
   async input => {
     const {output} = await extractMedicationDataPrompt(input);
     if (!output) {
-      // If output is null or undefined, return a default object that matches the schema
-      // This ensures the flow always returns a valid ExtractMedicationDataOutput object.
       console.error("AI prompt returned null output. Returning default structure.");
       return {
         patientName: '',
@@ -90,9 +91,9 @@ const extractMedicationDataFlow = ai.defineFlow(
         frequency: '',
         prescribingDoctor: '',
         isHandwritten: false,
+        status: 'pending_review',
       };
     }
-    return output;
+    return {...output, status: output.status || 'pending_review' };
   }
 );
-

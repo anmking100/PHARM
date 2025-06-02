@@ -2,76 +2,71 @@
 'use client';
 
 import { createContext, useContext, useState, type ReactNode, useEffect, useCallback } from 'react';
-import type { UserRole } from '@/lib/types';
-
-// Simplified AppUser for hardcoded admin
-export interface AppUser {
-  uid: string;
-  email: string;
-  source: 'hardcoded';
-  customClaims?: { role?: UserRole; admin?: boolean };
-}
+import type { UserRole, AppUser } from '@/lib/types';
 
 interface AuthContextType {
   user: AppUser | null;
+  role: UserRole | null;
   isAdmin: boolean;
+  isPharmacist: boolean;
+  isTechnician: boolean;
   loading: boolean;
-  loginAdmin: () => void; // Simplified login
+  loginUser: (email: string, role: UserRole) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const HARDCODED_ADMIN_EMAIL = 'admin@example.com';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const loginAdmin = useCallback(() => {
-    console.log('[AuthContext] Logging in as hardcoded admin.');
-    const adminUser: AppUser = {
-      uid: 'hardcoded-admin-uid',
-      email: HARDCODED_ADMIN_EMAIL,
+  const loginUser = useCallback((email: string, role: UserRole) => {
+    const simulatedUser: AppUser = {
+      uid: `hardcoded-${role}-${Date.now()}`,
+      email: email,
+      role: role,
       source: 'hardcoded',
-      customClaims: { admin: true, role: 'admin' },
     };
-    setUser(adminUser);
-    setIsAdmin(true);
-    localStorage.setItem('isHardcodedAdminLoggedIn', 'true');
+    setUser(simulatedUser);
+    localStorage.setItem('loggedInUser', JSON.stringify(simulatedUser));
     setLoading(false);
+    console.log(`[AuthContext] User logged in. Email: ${email}, Role: ${role}`);
   }, []);
 
   const logout = useCallback(() => {
-    console.log('[AuthContext] Logging out hardcoded admin.');
     setUser(null);
-    setIsAdmin(false);
-    localStorage.removeItem('isHardcodedAdminLoggedIn');
+    localStorage.removeItem('loggedInUser');
     setLoading(false);
+    console.log('[AuthContext] User logged out.');
   }, []);
 
   useEffect(() => {
     setLoading(true);
     console.log('[AuthContext] Initializing auth state.');
     try {
-      const adminLoggedIn = localStorage.getItem('isHardcodedAdminLoggedIn');
-      if (adminLoggedIn === 'true') {
-        console.log('[AuthContext] Restoring hardcoded admin session.');
-        loginAdmin(); // This will set user, isAdmin, and loading to false
-      } else {
-        setLoading(false); // Not logged in
+      const storedUser = localStorage.getItem('loggedInUser');
+      if (storedUser) {
+        const parsedUser: AppUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        console.log('[AuthContext] Restored user session:', parsedUser);
       }
     } catch (e) {
       console.error('[AuthContext] Error reading from localStorage:', e);
+    } finally {
       setLoading(false);
     }
-  }, [loginAdmin]); // loginAdmin is stable
+  }, []);
 
-  console.log('[AuthContext] Provider render. User:', user?.email, 'IsAdmin:', isAdmin, 'Loading:', loading);
+  const role = user?.role || null;
+  const isAdmin = role === 'admin';
+  const isPharmacist = role === 'pharmacist';
+  const isTechnician = role === 'technician';
+
+  console.log('[AuthContext] Provider render. Email:', user?.email, 'Role:', role, 'Loading:', loading);
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, loginAdmin, logout }}>
+    <AuthContext.Provider value={{ user, role, isAdmin, isPharmacist, isTechnician, loading, loginUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

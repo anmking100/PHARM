@@ -12,25 +12,24 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function AppHeader() {
-  const { user, isAdmin, logout, loading } = useAuth(); // user is now always the hardcoded admin if logged in
+  const { user, role, logout, loading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   const handleLogout = () => {
-    logout(); // Call the logout from AuthContext
+    logout();
     toast({
       title: 'Logged Out',
       description: 'You have been successfully logged out.',
     });
-    router.push('/login'); // Redirect to login page
+    router.push('/login');
   };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* Show sidebar trigger if admin is "logged in" */}
-          {user && isAdmin && <SidebarTrigger />}
+          {user && <SidebarTrigger />}
           <Link href="/" className="flex items-center gap-2 md:pl-2">
             <Logo />
           </Link>
@@ -41,10 +40,10 @@ export default function AppHeader() {
               <Skeleton className="h-8 w-20" />
               <Skeleton className="h-8 w-8 rounded-full" />
             </>
-          ) : user && isAdmin ? ( // Only admin can be "logged in"
+          ) : user ? (
             <>
-              <span className="text-sm text-muted-foreground hidden sm:inline">
-                {user.email} (Admin)
+              <span className="text-sm text-muted-foreground hidden sm:inline capitalize">
+                {user.email} ({role})
               </span>
                <Button variant="ghost" size="icon" aria-label="User Menu" disabled>
                 <UserCircle className="h-5 w-5" />
@@ -61,7 +60,7 @@ export default function AppHeader() {
             <Button asChild variant="default" size="sm">
               <Link href="/login">
                 <LogIn className="mr-1 h-4 w-4 sm:mr-2" />
-                Admin Login
+                Login
               </Link>
             </Button>
           )}

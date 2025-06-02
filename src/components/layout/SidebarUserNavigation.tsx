@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 
 export function SidebarUserNavigation() {
-  const { user, isAdmin, loading } = useAuth(); // isAdmin is true if hardcoded admin is "logged in"
+  const { user, isAdmin, loading } = useAuth();
   const pathname = usePathname();
 
   console.log('[SidebarUserNavigation] Render. User:', user?.email, 'IsAdmin:', isAdmin, 'Loading:', loading);
@@ -17,9 +17,8 @@ export function SidebarUserNavigation() {
     return null; 
   }
 
-  // Only show Admin Panel link if the hardcoded admin is "logged in"
   if (user && isAdmin) {
-    console.log('[SidebarUserNavigation] Admin is "logged in". Rendering Admin Panel link.');
+    console.log('[SidebarUserNavigation] Admin is logged in. Rendering Admin Panel link.');
     return (
       <SidebarMenuItem>
         <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>
@@ -32,6 +31,6 @@ export function SidebarUserNavigation() {
     );
   }
 
-  console.log('[SidebarUserNavigation] Admin not "logged in". Not rendering Admin Panel link.');
+  console.log('[SidebarUserNavigation] User not admin or not logged in. Not rendering Admin Panel link.');
   return null;
 }

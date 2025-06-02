@@ -13,8 +13,8 @@ import { Dialog, DialogTrigger, DialogContent, DialogDescription, DialogFooter, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithRole } from "./actions";
-import type { UserRole } from "@/lib/types";
+import { createUserWithRole } from "./actions"; // Conceptual user creation
+import type { UserRole, NewUserFormData } from "@/lib/types";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface DisplayUser {
@@ -23,7 +23,7 @@ interface DisplayUser {
   role: UserRole;
 }
 
-const initialUsers: DisplayUser[] = []; // Start with an empty list for conceptual users
+const initialUsers: DisplayUser[] = [];
 
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
@@ -36,7 +36,7 @@ export default function AdminPage() {
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   
-  const [newUserForm, setNewUserForm] = useState<{email: string; password?: string; role: UserRole }>({
+  const [newUserForm, setNewUserForm] = useState<NewUserFormData>({
     email: '',
     password: '', 
     role: 'technician',
@@ -51,7 +51,7 @@ export default function AdminPage() {
          toast({
             variant: "destructive",
             title: "Access Denied",
-            description: "You do not have permission to access the admin panel. Please log in as admin.",
+            description: "You do not have permission to access the admin panel.",
         });
       } else {
         console.log('[AdminPage] Admin access confirmed.');
@@ -70,13 +70,19 @@ export default function AdminPage() {
 
   const handleCreateUserSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!newUserForm.email || !newUserForm.role) { // Password not strictly required for conceptual creation
-      toast({ variant: "destructive", title: "Missing Fields", description: "Please fill in email and role fields." });
+    if (!newUserForm.email || !newUserForm.role || !newUserForm.password) {
+      toast({ variant: "destructive", title: "Missing Fields", description: "Please fill in email, password and role." });
       return;
     }
+    if (newUserForm.password.length < 6) {
+      toast({ variant: "destructive", title: "Password Too Short", description: "Password must be at least 6 characters." });
+      return;
+    }
+
     setIsSubmittingUser(true);
     try {
-      const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
+      // Uses conceptual createUserWithRole, no Firebase interaction
+      const result = await createUserWithRole(newUserForm); 
       if (result.success && result.userId && result.email && result.role) {
         setDisplayedUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: result.email as string, role: result.role as UserRole }]);
         toast({ title: "User Action", description: result.message });
@@ -92,8 +98,8 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading && (!authUser || !isAdmin)) {
-    console.log('[AdminPage] Auth loading, showing spinner.');
+  if (authLoading || (!authUser && !authLoading)) { // Show loader if auth is loading or if not loading but no user (implies redirect is pending)
+    console.log('[AdminPage] Auth loading or redirect pending, showing spinner.');
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -101,8 +107,8 @@ export default function AdminPage() {
       </div>
     );
   }
-
-  if (!authUser || !isAdmin) {
+  
+  if (!authUser || !isAdmin) { // This check runs after loading is complete
      console.log('[AdminPage] User not authenticated as admin, showing access denied or redirecting.');
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
@@ -117,6 +123,7 @@ export default function AdminPage() {
     );
   }
 
+
   console.log('[AdminPage] Rendering admin dashboard content for:', authUser.email);
   return (
     <div className="space-y-8">
@@ -126,7 +133,7 @@ export default function AdminPage() {
                 <ShieldCheck className="h-8 w-8 text-primary" />
                 Admin Dashboard
             </h1>
-            <p className="text-muted-foreground">Manage users (conceptual) and roles. Firebase interaction is removed.</p>
+            <p className="text-muted-foreground">Manage users (conceptual) and roles. No Firebase interaction.</p>
         </div>
       </div>
 
@@ -137,7 +144,7 @@ export default function AdminPage() {
               <Users className="h-5 w-5 text-primary" />
               User Management (Conceptual)
             </CardTitle>
-            <CardDescription>View, add, and manage user roles. User list is local to this session. No Firebase interaction.</CardDescription>
+            <CardDescription>View, add, and manage user roles. User list is local to this session.</CardDescription>
           </div>
           <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
             <DialogTrigger asChild>
@@ -151,7 +158,7 @@ export default function AdminPage() {
                   <UserPlus className="h-5 w-5" />Create New User (Conceptual)
                 </DialogTitle>
                 <DialogDescription>
-                  Fill in the details to add a new user conceptually. No Firebase user will be created.
+                  Fill in the details to add a new user conceptually.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateUserSubmit}>
@@ -166,7 +173,7 @@ export default function AdminPage() {
                     <Label htmlFor="password" className="text-right">
                       Password
                     </Label>
-                    <Input id="password" name="password" type="password" value={newUserForm.password ?? ''} onChange={handleNewUserInputChange} className="col-span-3" placeholder="(Optional for conceptual)" disabled={isSubmittingUser}/>
+                    <Input id="password" name="password" type="password" value={newUserForm.password ?? ''} onChange={handleNewUserInputChange} className="col-span-3" placeholder="Min. 6 characters" required disabled={isSubmittingUser}/>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="role" className="text-right">
@@ -234,7 +241,7 @@ export default function AdminPage() {
         </CardContent>
          <CardFooter>
           <p className="text-xs text-muted-foreground">
-            Note: User creation is now conceptual and does not interact with Firebase.
+            Note: User creation is conceptual and does not interact with Firebase.
           </p>
         </CardFooter>
       </Card>
@@ -246,7 +253,7 @@ export default function AdminPage() {
               Application Settings
             </CardTitle>
             <CardDescription>Configure application-wide settings and parameters.</CardDescription>
-          </CardHeader>
+          </Header>
           <CardContent>
              <p className="text-sm text-muted-foreground mb-4">
               System configuration options will be available here.
