@@ -1,13 +1,15 @@
+
 'use client';
 
 import type { User } from 'firebase/auth';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { auth } from '@/lib/firebase/client';
-import { onAuthStateChanged } from 'firebase/auth';
-import { Skeleton } from '@/components/ui/skeleton'; 
+import { onAuthStateChanged, type IdTokenResult } from 'firebase/auth';
 
 interface AuthContextType {
   user: User | null;
+  claims: IdTokenResult['claims'] | null;
+  isAdmin: boolean;
   loading: boolean;
 }
 
@@ -15,17 +17,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [claims, setClaims] = useState<IdTokenResult['claims'] | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        try {
+          const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh to get latest claims
+          setClaims(idTokenResult.claims);
+          setIsAdmin(!!idTokenResult.claims.admin); // Check for 'admin: true' claim
+          console.log('User claims:', idTokenResult.claims);
+        } catch (error) {
+          console.error("Error fetching user claims:", error);
+          setClaims(null);
+          setIsAdmin(false);
+        }
+      } else {
+        setUser(null);
+        setClaims(null);
+        setIsAdmin(false);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  if (loading) {
+  if (loading && !user) { // Show loader only on initial app load when user state is unknown
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <svg className="animate-spin h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -37,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, claims, isAdmin, loading }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

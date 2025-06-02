@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, type FormEvent } from "react";
@@ -25,7 +26,7 @@ const initialUsers: AppUser[] = [
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -40,12 +41,15 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login?redirect=/admin'); 
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login?redirect=/admin'); 
+      } else if (!isAdmin) {
+        // If user is logged in but not admin, redirect or show access denied
+        // For now, we show access denied directly within the component.
+      }
     }
-    // Add a proper admin role check here once custom claims are set up.
-    // For now, any logged-in user can access this page.
-  }, [user, authLoading, router]);
+  }, [user, isAdmin, authLoading, router]);
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,10 +68,13 @@ export default function AdminPage() {
     }
     setIsSubmittingUser(true);
     try {
+      // IMPORTANT: This action is conceptual. True user creation with roles
+      // requires Firebase Admin SDK in a secure backend environment.
       const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
       if (result.success && result.userId) {
+        // In a real app, you'd fetch updated users list or rely on Firestore listeners
         setUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: newUserForm.email, role: newUserForm.role }]);
-        toast({ title: "User Created", description: result.message });
+        toast({ title: "User Created (Conceptual)", description: result.message });
         setIsCreateUserDialogOpen(false);
         setNewUserForm({ email: '', password: '', role: 'technician' }); // Reset form
       } else {
@@ -89,7 +96,7 @@ export default function AdminPage() {
     );
   }
   
-  if (!user) {
+  if (!user) { // Should be caught by useEffect, but good as a safeguard
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
@@ -98,10 +105,7 @@ export default function AdminPage() {
     );
   }
   
-  // Placeholder for role check.
-  const isUserAdmin = true; // Assume admin for now. Replace with actual check: (user as any).customClaims?.admin === true;
-
-  if (!isUserAdmin) {
+  if (!isAdmin) {
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
          <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -162,7 +166,7 @@ export default function AdminPage() {
                     <Label htmlFor="password" className="text-right">
                       Password
                     </Label>
-                    <Input id="password" name="password" type="password" value={newUserForm.password} onChange={handleNewUserInputChange} className="col-span-3" placeholder="••••••••" required disabled={isSubmittingUser}/>
+                    <Input id="password" name="password" type="password" value={newUserForm.password} onChange={handleNewNewUserInputChange} className="col-span-3" placeholder="••••••••" required disabled={isSubmittingUser}/>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="role" className="text-right">
@@ -230,7 +234,7 @@ export default function AdminPage() {
         </CardContent>
          <CardFooter>
           <p className="text-xs text-muted-foreground">
-            Note: User creation and role assignment are conceptual and use mock data. Full implementation requires backend Firebase Admin SDK setup.
+            Note: User creation and role assignment are conceptual. Full implementation requires backend Firebase Admin SDK setup.
           </p>
         </CardFooter>
       </Card>
@@ -264,7 +268,7 @@ export default function AdminPage() {
               <strong>Role & Permission Management:</strong>
                 <ul>
                     <li>Define roles (e.g., 'admin', 'pharmacist') and associated permissions.</li>
-                    <li>Store roles/permissions in Firestore and link them to users, or use Firebase Custom Claims.</li>
+                    <li>Store roles/permissions in Firestore and link them to users, or use Firebase Custom Claims for roles.</li>
                     <li>Implement UI for editing roles/permissions (the "Edit Role" button is a placeholder).</li>
                 </ul>
             </li>
@@ -275,7 +279,7 @@ export default function AdminPage() {
               <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control once roles are implemented.
             </li>
             <li>
-              <strong>Admin Role Check:</strong> Replace `const isUserAdmin = true;` with a proper check of the logged-in user's custom claims once they are set up (e.g., `(user as any).customClaims?.admin === true`).
+              <strong>Admin Role Check:</strong> The app now checks for `customClaims.admin === true` on the logged-in user. You'll need to set this claim for your admin users.
             </li>
         </ul>
       </div>
