@@ -8,16 +8,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Users, AlertTriangle, Info, Clock, ChevronDown, ChevronUp, CheckCircle, PackageCheck, MoreHorizontal } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Info, Clock, ChevronDown, ChevronUp, CheckCircle, PackageCheck, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { MedicationData, MedicationStatus } from '@/lib/types';
-import { getAllPatientRecords, upsertPatientRecord } from '@/lib/patient-data';
-import { Button } from '@/components/ui/button';
+import { getAllPatientRecords, upsertPatientRecord, deletePatientRecord } from '@/lib/patient-data';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,8 +44,8 @@ const getStatusBadgeVariant = (status?: MedicationStatus) => {
   switch (status) {
     case 'pending_review': return 'destructive';
     case 'reviewed': return 'secondary';
-    case 'approved': return 'default'; // Greenish/Blueish by default theme
-    case 'packed': return 'default'; // Same as approved
+    case 'approved': return 'default';
+    case 'packed': return 'default';
     default: return 'outline';
   }
 };
@@ -51,8 +62,11 @@ export default function PatientsPage() {
   const [groupedPatientData, setGroupedPatientData] = useState<GroupedPatientData[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [expandedPatients, setExpandedPatients] = useState<Set<string>>(new Set());
+  const [recordToDelete, setRecordToDelete] = useState<MedicationData | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const canViewPage = isAdmin || isPharmacist || isTechnician;
+  const canDeleteRecords = isAdmin || isPharmacist;
 
   const fetchAndProcessRecords = useCallback(() => {
     setIsLoadingRecords(true);
@@ -152,6 +166,32 @@ export default function PatientsPage() {
     fetchAndProcessRecords();
   };
 
+  const openDeleteDialog = (record: MedicationData) => {
+    setRecordToDelete(record);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteRecord = () => {
+    if (!recordToDelete || !recordToDelete.id) return;
+
+    const success = deletePatientRecord(recordToDelete.id);
+    if (success) {
+      toast({
+        title: "Record Deleted",
+        description: `Prescription for ${recordToDelete.medicationName} (${recordToDelete.patientName}) has been deleted.`,
+      });
+      fetchAndProcessRecords();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: "Could not delete the record. It might have already been removed or an error occurred.",
+      });
+    }
+    setIsDeleteDialogOpen(false);
+    setRecordToDelete(null);
+  };
+
 
   if (authLoading || (isLoadingRecords && canViewPage)) {
     return (
@@ -193,7 +233,9 @@ export default function PatientsPage() {
     const canAdminOrTechPack = (isAdmin || isTechnician) && record.status === 'approved';
     const showPackAction = canAdminOrTechPack;
 
-    if (!showApproveAction && !showPackAction) {
+    const showDeleteAction = canDeleteRecords; // Admins and Pharmacists can delete
+
+    if (!showApproveAction && !showPackAction && !showDeleteAction) {
       return <span className="text-xs text-muted-foreground">No actions</span>;
     }
 
@@ -216,6 +258,13 @@ export default function PatientsPage() {
             <DropdownMenuItem onClick={() => handleMarkAsPackedOnPatientsPage(record)}>
               <PackageCheck className="mr-2 h-4 w-4" />
               Mark as Packed
+            </DropdownMenuItem>
+          )}
+          {showDeleteAction && (showApproveAction || showPackAction) && <DropdownMenuSeparator />}
+          {showDeleteAction && (
+            <DropdownMenuItem onClick={() => openDeleteDialog(record)} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Record
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -360,6 +409,31 @@ export default function PatientsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the prescription record for {' '}
+              <span className="font-semibold">{recordToDelete?.medicationName}</span>
+              {' for patient '}
+              <span className="font-semibold">{recordToDelete?.patientName}</span>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setIsDeleteDialogOpen(false); setRecordToDelete(null); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteRecord}
+              className={buttonVariants({variant: "destructive"})}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }

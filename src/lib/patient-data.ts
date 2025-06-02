@@ -42,6 +42,27 @@ export function upsertPatientRecord(record: MedicationData): MedicationData {
   }
 }
 
+export function deletePatientRecord(recordId: string): boolean {
+  if (typeof window === 'undefined' || !recordId) {
+    return false;
+  }
+  try {
+    let records = getAllPatientRecords();
+    const initialLength = records.length;
+    records = records.filter(r => r.id !== recordId);
+    if (records.length < initialLength) {
+      localStorage.setItem(PATIENT_DATA_KEY, JSON.stringify(records));
+      console.log(`Record with ID ${recordId} deleted.`);
+      return true;
+    }
+    console.log(`Record with ID ${recordId} not found for deletion.`);
+    return false; // Record not found
+  } catch (error) {
+    console.error(`Error deleting patient record with ID ${recordId} from localStorage:`, error);
+    return false;
+  }
+}
+
 export function clearAllPatientRecords(): void {
   if (typeof window === 'undefined') {
     return;
@@ -49,3 +70,4 @@ export function clearAllPatientRecords(): void {
   localStorage.removeItem(PATIENT_DATA_KEY);
   console.log("All patient records cleared from localStorage.");
 }
+
