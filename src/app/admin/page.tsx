@@ -131,9 +131,6 @@ export default function AdminPage() {
             <UserPlus className="mr-2 h-5 w-5" /> 
             Create New User (Conceptual)
           </CardTitle>
-          <CardDescription>
-            Enter the details for the new user. Password must be at least 6 characters. Users created here are not stored persistently.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreateUserSubmit} className="space-y-6">
