@@ -3,7 +3,7 @@
 
 import type { MedicationData } from './types';
 
-const PATIENT_DATA_KEY = 'rxflow_patient_data_v1'; // Added versioning to key in case of structure changes
+const PATIENT_DATA_KEY = 'rxflow_patient_data_v1';
 
 export function getAllPatientRecords(): MedicationData[] {
   if (typeof window === 'undefined') {
@@ -18,21 +18,27 @@ export function getAllPatientRecords(): MedicationData[] {
   }
 }
 
-export function addPatientRecord(record: MedicationData): void {
+export function upsertPatientRecord(record: MedicationData): MedicationData {
   if (typeof window === 'undefined') {
-    return;
+    return record; // Should not happen in client-side flow
   }
   try {
     const records = getAllPatientRecords();
-    // Add a unique ID to each record for potential future use (e.g., key in React list)
-    // And to differentiate if the same prescription is "saved" multiple times,
-    // though current logic replaces based on status.
-    // For this simple store, we'll just push. A more robust store would check for duplicates/updates.
-    const recordWithId = { ...record, id: record.id || `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`};
-    records.push(recordWithId);
+    const recordId = record.id || `record_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const updatedRecord = { ...record, id: recordId };
+
+    const existingRecordIndex = records.findIndex(r => r.id === updatedRecord.id);
+
+    if (existingRecordIndex > -1) {
+      records[existingRecordIndex] = updatedRecord; // Update existing
+    } else {
+      records.push(updatedRecord); // Add new
+    }
     localStorage.setItem(PATIENT_DATA_KEY, JSON.stringify(records));
+    return updatedRecord; // Return the record with ID
   } catch (error) {
-    console.error("Error saving patient data to localStorage:", error);
+    console.error("Error upserting patient data to localStorage:", error);
+    return record; // Return original record on error
   }
 }
 

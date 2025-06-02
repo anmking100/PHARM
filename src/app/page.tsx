@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { addPatientRecord } from '@/lib/patient-data';
+import { upsertPatientRecord } from '@/lib/patient-data';
 
 
 export default function HomePage() {
@@ -88,7 +88,8 @@ export default function HomePage() {
 
     try {
       const result = await extractMedicationData({ faxDataUri });
-      setExtractedData({...result, status: result.status || 'pending_review'});
+      // AI result comes without an ID. ID is assigned upon first save.
+      setExtractedData({...result, status: result.status || 'pending_review'}); 
       toast({
         title: "Processing Complete",
         description: "Fax data extracted successfully. Status: Pending Review.",
@@ -127,10 +128,11 @@ export default function HomePage() {
     }
     if (!extractedData) return;
 
-    const updatedData = { ...extractedData, status: 'reviewed' as MedicationStatus };
-    setExtractedData(updatedData);
-    addPatientRecord(updatedData); // Add to our conceptual patient data store
-    console.log("Saving changes (conceptual) and adding to patient records:", updatedData);
+    const dataToSave = { ...extractedData, status: 'reviewed' as MedicationStatus };
+    const savedData = upsertPatientRecord(dataToSave); 
+    setExtractedData(savedData); // Update state with potentially new ID and status
+    
+    console.log("Saving changes and upserting to patient records:", savedData);
     toast({
       title: "Changes Saved",
       description: "Medication data saved and marked as reviewed. View in Patients page.",
@@ -138,26 +140,26 @@ export default function HomePage() {
   };
   
   const handleMarkAsPacked = () => {
-    if (!canMarkAsPacked) {
-      toast({variant: "destructive", title: "Permission Denied", description: "Only technicians can mark prescriptions as packed."});
+    if (!canMarkAsPacked && !(isAdmin || isPharmacist)) { // Allow admin/pharmacist to also pack for testing
+      toast({variant: "destructive", title: "Permission Denied", description: "You do not have sufficient permissions to mark as packed."});
       return;
     }
     if (!extractedData) return;
+     // Technicians can only mark as packed if it's already reviewed.
+    if (isTechnician && extractedData.status !== 'reviewed') {
+      toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed by a pharmacist before it can be packed."});
+      return;
+    }
 
-    // Note: If technician marks as packed, this specific instance on HomePage is updated.
-    // The patient record in localStorage (if already added by pharmacist) would ideally be updated too.
-    // For now, we're keeping it simple: technician updates local state. Patient page shows what was "reviewed".
-    const updatedData = { ...extractedData, status: 'packed' as MedicationStatus };
-    setExtractedData(updatedData);
 
-    // If we want the "packed" status to reflect in the patient records as well, we'd need a way to update existing records.
-    // addPatientRecord({ ...updatedData }); // This would add a new record if ID logic isn't robust.
-    // For now, let's assume the "reviewed" version is what's primarily stored and packing is a final state update visible here.
+    const dataToUpdate = { ...extractedData, status: 'packed' as MedicationStatus };
+    const updatedData = upsertPatientRecord(dataToUpdate);
+    setExtractedData(updatedData); 
 
-    console.log("Marked as packed (conceptual):", updatedData);
+    console.log("Marked as packed and upserted to patient records:", updatedData);
     toast({
-      title: "Marked as Packed (Conceptual)",
-      description: "Prescription status updated to Packed.",
+      title: "Marked as Packed",
+      description: "Prescription status updated to Packed and saved.",
     });
   };
 
@@ -214,13 +216,12 @@ export default function HomePage() {
               selectedFileName={selectedFile?.name || null}
             />
           )}
-          {!canUploadAndEdit && isTechnician && (
+          {!canUploadAndEdit && (isTechnician || !(isAdmin || isPharmacist)) && ( // Show if technician or if not admin/pharmacist
             <Alert>
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Technician View</AlertTitle>
+              <AlertTitle>Restricted View</AlertTitle>
               <AlertDescription>
-                You are in technician view. You can view prescription details and mark them as packed. 
-                Fax upload and editing are restricted.
+                {isTechnician ? "You are in technician view. You can view prescription details and mark them as packed once reviewed by a pharmacist." : "You do not have permission to upload or edit faxes."}
               </AlertDescription>
             </Alert>
           )}
@@ -245,8 +246,9 @@ export default function HomePage() {
               onMarkAsPacked={handleMarkAsPacked}
               isProcessingAi={isProcessingAi}
               canEdit={canUploadAndEdit}
-              canPack={canMarkAsPacked}
+              canPack={canMarkAsPacked || isAdmin || isPharmacist} // Admins/Pharmacists can also pack for testing
               currentStatus={extractedData?.status}
+              isTechnicianView={isTechnician}
             />
           </div>
         </div>

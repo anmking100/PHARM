@@ -20,6 +20,7 @@ interface ExtractedDataFormProps {
   canEdit: boolean;
   canPack: boolean;
   currentStatus?: MedicationStatus;
+  isTechnicianView?: boolean; // Added to refine messages for technicians
 }
 
 const statusDisplay: Record<MedicationStatus, string> = {
@@ -37,7 +38,8 @@ export default function ExtractedDataForm({
   isProcessingAi,
   canEdit,
   canPack,
-  currentStatus
+  currentStatus,
+  isTechnicianView
 }: ExtractedDataFormProps) {
   
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -98,6 +100,10 @@ export default function ExtractedDataForm({
     }
   };
 
+  const isSaveDisabled = currentStatus === 'packed' || currentStatus === 'reviewed';
+  // Technicians can only pack if status is 'reviewed'. Admins/Pharmacists have more freedom for testing.
+  const isPackDisabled = currentStatus === 'packed' || (isTechnicianView && currentStatus !== 'reviewed');
+
 
   return (
     <Card>
@@ -127,7 +133,7 @@ export default function ExtractedDataForm({
             </AlertDescription>
           </Alert>
         )}
-         {!data.isHandwritten && Object.values(data).some(val => val === "" && typeof val === 'string') && (
+         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && val === "" && typeof val === 'string') && (
           <Alert variant="default" className="bg-accent/10 border-accent/50 text-accent-foreground">
             <Info className="h-4 w-4 text-accent" />
             <AlertTitle>Missing Information</AlertTitle>
@@ -174,13 +180,13 @@ export default function ExtractedDataForm({
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         {canEdit && (
-          <Button onClick={onSaveChanges} variant="default" disabled={currentStatus === 'packed'}>
+          <Button onClick={onSaveChanges} variant="default" disabled={isSaveDisabled}>
             <Save className="mr-2 h-4 w-4" />
-            {currentStatus === 'packed' ? 'Prescription Packed' : 'Save Changes & Mark Reviewed'}
+            {currentStatus === 'packed' ? 'Prescription Packed' : (currentStatus === 'reviewed' ? 'Already Reviewed' : 'Save Changes & Mark Reviewed')}
           </Button>
         )}
         {canPack && (
-          <Button onClick={onMarkAsPacked} variant="default" disabled={currentStatus === 'packed' || currentStatus === 'pending_review'}>
+          <Button onClick={onMarkAsPacked} variant="default" disabled={isPackDisabled}>
             <PackageCheck className="mr-2 h-4 w-4" />
             {currentStatus === 'packed' ? 'Already Packed' : 'Mark as Packed'}
           </Button>
