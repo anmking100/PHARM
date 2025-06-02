@@ -7,7 +7,16 @@ import type { NewUserFormData, UserRole } from '@/lib/types';
 
 export async function createUserWithRole(
   userData: NewUserFormData
-): Promise<{ success: boolean; message: string; userId?: string; email?: string; role?: UserRole }> {
+): Promise<{ 
+  success: boolean; 
+  message: string; 
+  userId?: string; 
+  email?: string; 
+  role?: UserRole;
+  canUploadDocs?: boolean;
+  canReviewDocs?: boolean;
+  canApproveMedication?: boolean; 
+}> {
   console.log('[AdminAction] Attempting to create user (conceptual):', userData);
 
   if (!userData.email || !userData.role || !userData.password) {
@@ -25,13 +34,17 @@ export async function createUserWithRole(
   try {
     const mockUserId = `mock_user_${Date.now()}`;
     console.log(`[AdminAction] Conceptual user ${userData.email} with role ${userData.role} created with ID: ${mockUserId}.`);
+    console.log(`[AdminAction] Permissions: Upload=${userData.canUploadDocs}, Review=${userData.canReviewDocs}, Approve=${userData.canApproveMedication}`);
     
     return { 
       success: true, 
-      message: `User ${userData.email} (${userData.role}) conceptually created.`,
+      message: `User ${userData.email} (${userData.role}) conceptually created with specified permissions.`,
       userId: mockUserId,
       email: userData.email,
-      role: userData.role
+      role: userData.role,
+      canUploadDocs: userData.canUploadDocs,
+      canReviewDocs: userData.canReviewDocs,
+      canApproveMedication: userData.canApproveMedication,
     };
 
   } catch (error: any) {
@@ -43,3 +56,4 @@ export async function createUserWithRole(
     };
   }
 }
+

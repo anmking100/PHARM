@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertTriangle, ShieldCheck, UserPlus } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createUserWithRole } from './actions';
 import type { UserRole, NewUserFormData } from '@/lib/types';
@@ -25,6 +26,10 @@ export default function AdminPage() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('technician'); // Default role
+  const [canUploadDocs, setCanUploadDocs] = useState(false);
+  const [canReviewDocs, setCanReviewDocs] = useState(false);
+  const [canApproveMedication, setCanApproveMedication] = useState(false);
+
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   const [createUserError, setCreateUserError] = useState<string | null>(null);
 
@@ -53,6 +58,9 @@ export default function AdminPage() {
       email: newUserEmail,
       password: newUserPassword,
       role: newUserRole,
+      canUploadDocs: canUploadDocs,
+      canReviewDocs: canReviewDocs,
+      canApproveMedication: canApproveMedication,
     };
 
     const result = await createUserWithRole(userData);
@@ -67,6 +75,9 @@ export default function AdminPage() {
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserRole('technician');
+      setCanUploadDocs(false);
+      setCanReviewDocs(false);
+      setCanApproveMedication(false);
       setCreateUserError(null);
     } else {
       setCreateUserError(result.message);
@@ -169,7 +180,42 @@ export default function AdminPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end">
+
+            <div className="space-y-4 pt-2">
+              <Label className="font-medium">Permissions (Conceptual)</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="canUploadDocs" 
+                  checked={canUploadDocs} 
+                  onCheckedChange={(checked) => setCanUploadDocs(checked as boolean)}
+                />
+                <Label htmlFor="canUploadDocs" className="font-normal flex items-center gap-1">
+                  <UploadCloud className="h-4 w-4 text-muted-foreground" /> Upload Docs
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="canReviewDocs" 
+                  checked={canReviewDocs} 
+                  onCheckedChange={(checked) => setCanReviewDocs(checked as boolean)}
+                />
+                <Label htmlFor="canReviewDocs" className="font-normal flex items-center gap-1">
+                  <ClipboardCheck className="h-4 w-4 text-muted-foreground" /> Review Docs
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="canApproveMedication" 
+                  checked={canApproveMedication} 
+                  onCheckedChange={(checked) => setCanApproveMedication(checked as boolean)}
+                />
+                <Label htmlFor="canApproveMedication" className="font-normal flex items-center gap-1">
+                  <CheckSquare className="h-4 w-4 text-muted-foreground" /> Approve Medication
+                </Label>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
               <Button type="submit" disabled={isSubmittingUser}>
                 {isSubmittingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create User
@@ -181,3 +227,4 @@ export default function AdminPage() {
     </div>
   );
 }
+

@@ -20,10 +20,17 @@ export interface AppUser {
   // Source helps distinguish hardcoded conceptual users
   // This might be expanded if integrating with a real auth system later
   source: 'hardcoded';
+  canUploadDocs?: boolean;
+  canReviewDocs?: boolean;
+  canApproveMedication?: boolean;
 }
 
 export interface NewUserFormData {
   email: string;
   role: UserRole;
   password?: string; // Password for conceptual user creation by admin
+  canUploadDocs?: boolean;
+  canReviewDocs?: boolean;
+  canApproveMedication?: boolean;
 }
+
