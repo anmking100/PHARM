@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info } from "lucide-react";
+import { Edit, Save, AlertTriangle, Bot, CheckCircle2, Info, Loader2 } from "lucide-react";
 import type { MedicationData } from "@/lib/types";
 
 interface ExtractedDataFormProps {
@@ -139,21 +139,3 @@ export default function ExtractedDataForm({ data, onDataChange, onSaveChanges, i
     </Card>
   );
 }
-
-// Dummy Loader2 for use when isProcessingAi is true
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-  >
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);
