@@ -8,11 +8,10 @@ import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 
 export function SidebarUserNavigation() {
-  const { user, isAdmin, loading, claims } = useAuth(); // Added claims for logging
+  const { user, isAdmin, loading, claims } = useAuth(); 
   const pathname = usePathname();
 
-  // Log the state from useAuth
-  console.log('[SidebarUserNavigation] State from useAuth - loading:', loading, 'user:', user?.email, 'isAdmin:', isAdmin, 'claims:', claims);
+  console.log('[SidebarUserNavigation] Render cycle. loading:', loading, 'user:', user?.email, 'isAdmin:', isAdmin, 'claims:', claims);
 
   if (loading) {
     console.log('[SidebarUserNavigation] Auth is loading. Not rendering admin link yet.');
@@ -20,18 +19,19 @@ export function SidebarUserNavigation() {
   }
 
   if (!user) {
-    console.log('[SidebarUserNavigation] User not logged in. Not rendering admin link.');
-    return null;
-  }
-
-  // Explicitly log the isAdmin value being checked
-  console.log('[SidebarUserNavigation] Checking isAdmin value:', isAdmin);
-  if (!isAdmin) {
-    console.log('[SidebarUserNavigation] User is not admin. Not rendering admin link. Current claims:', claims);
+    console.log('[SidebarUserNavigation] User not logged in (loading is false). Not rendering admin link.');
     return null;
   }
   
-  console.log('[SidebarUserNavigation] User is admin. Rendering Admin Panel link.');
+  // At this point, loading is false and user is present.
+  console.log('[SidebarUserNavigation] User is present, loading is false. Checking isAdmin value:', isAdmin);
+  if (!isAdmin) {
+    console.log('[SidebarUserNavigation] User is present, loading is false, BUT isAdmin is false. Not rendering admin link. Current claims:', claims);
+    return null;
+  }
+  
+  // If we reach here, loading is false, user is present, and isAdmin is true.
+  console.log('[SidebarUserNavigation] All checks passed (loading false, user present, isAdmin true). Rendering Admin Panel link.');
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>

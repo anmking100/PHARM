@@ -40,21 +40,17 @@ export default function AdminPage() {
     role: 'technician',
   });
 
+  // Log initial values from context on each render
+  console.log('[AdminPage] Render cycle. authLoading:', authLoading, 'user:', user?.email, 'isAdmin:', isAdmin);
+
   useEffect(() => {
-    console.log('[AdminPage] Auth state - authLoading:', authLoading, 'user:', user?.email, 'isAdmin:', isAdmin);
-    if (!authLoading) {
-      if (!user) {
-        console.log('[AdminPage] No user, redirecting to login.');
-        router.push('/login?redirect=/admin'); 
-      } else if (!isAdmin) {
-        console.log('[AdminPage] User is not admin, access denied will be shown.');
-        // If user is logged in but not admin, redirect or show access denied
-        // For now, we show access denied directly within the component.
-      } else {
-        console.log('[AdminPage] User is admin, proceeding to render dashboard.');
-      }
+    // This effect handles redirection if the user is not authenticated *after* loading is complete.
+    console.log('[AdminPage] useEffect triggered. authLoading:', authLoading, 'user:', user?.email, 'isAdmin:', isAdmin);
+    if (!authLoading && !user) {
+      console.log('[AdminPage] useEffect: No user and not loading. Redirecting to login.');
+      router.push('/login?redirect=/admin');
     }
-  }, [user, isAdmin, authLoading, router]);
+  }, [authLoading, user, router]); // Dependencies: only redirect if authLoading or user changes
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -90,6 +86,7 @@ export default function AdminPage() {
   };
 
   if (authLoading) {
+    console.log('[AdminPage] Render: authLoading is true. Displaying loading spinner.');
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
             <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
@@ -98,8 +95,13 @@ export default function AdminPage() {
     );
   }
   
-  if (!user && !authLoading) { 
-     console.log('[AdminPage] Rendering redirect to login (user null, not loading).');
+  // At this point, authLoading is false.
+  console.log('[AdminPage] Render: authLoading is false.');
+
+  if (!user) {
+     // This case should ideally be handled by the useEffect redirecting.
+     // If we reach here, it's a brief state before redirection or if useEffect hasn't run yet.
+     console.log('[AdminPage] Render: authLoading is false, but no user. Displaying redirecting message.');
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
@@ -108,8 +110,11 @@ export default function AdminPage() {
     );
   }
   
-  if (user && !isAdmin && !authLoading) {
-     console.log('[AdminPage] Rendering Access Denied (user present, not admin, not loading).');
+  // At this point, authLoading is false AND user is present.
+  console.log('[AdminPage] Render: authLoading is false, user is present. User:', user.email, 'Checking isAdmin:', isAdmin);
+
+  if (!isAdmin) {
+     console.log('[AdminPage] Render: User is present, authLoading is false, BUT isAdmin is false. Displaying Access Denied.');
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
          <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -122,23 +127,8 @@ export default function AdminPage() {
     );
   }
 
-  // If we reach here, user must be admin or something is still loading/in transition
-  if (!isAdmin && user) { // Final check before rendering admin content
-    console.log('[AdminPage] Fallback Access Denied just before render.');
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
-         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
-        <p className="text-muted-foreground">You do not have the necessary permissions to view this page.</p>
-        <Button asChild className="mt-6">
-          <Link href="/">Go to Homepage</Link>
-        </Button>
-      </div>
-    );
-  }
-
-
-  console.log('[AdminPage] Rendering admin dashboard content.');
+  // If we reach here, authLoading is false, user is present, AND isAdmin is true.
+  console.log('[AdminPage] Render: All checks passed (authLoading false, user present, isAdmin true). Rendering admin dashboard content.');
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
