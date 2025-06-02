@@ -129,7 +129,7 @@ export default function PatientsPage() {
             Patient Records
           </h1>
           <p className="text-muted-foreground">
-            View reviewed and packed prescription records. Click patient name to see history.
+            Manage and view patient prescription history.
           </p>
         </div>
       </div>
