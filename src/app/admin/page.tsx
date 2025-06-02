@@ -1,19 +1,24 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, type ChangeEvent, type FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShieldCheck, Users2, Search, Trash2, CheckSquare } from 'lucide-react';
+import { Loader2, ShieldCheck, Users2, Search, Trash2, CheckSquare, UserPlus, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getSystemUsers } from './actions';
-import type { ConceptualUser } from '@/lib/types';
+import { getSystemUsers, createUserWithRole } from './actions';
+import type { UserRole, NewUserFormData, ConceptualUser } from '@/lib/types';
+
 
 // Helper icon for XCircle, as it's not directly in lucide-react by that name
 const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -35,6 +40,16 @@ const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const initialNewUserState: NewUserFormData = {
+  email: '',
+  role: 'technician', // Default role
+  password: '',
+  canUploadDocs: false,
+  canReviewDocs: false,
+  canApproveMedication: false,
+};
+
+
 export default function AdminPage() {
   const { user: authUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
@@ -44,6 +59,11 @@ export default function AdminPage() {
   const [systemUsers, setSystemUsers] = useState<ConceptualUser[]>([]);
   const [isLoadingSystemUsers, setIsLoadingSystemUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // State for creating user
+  const [newUser, setNewUser] = useState<NewUserFormData>(initialNewUserState);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   // State for deleting user
   const [deletingUser, setDeletingUser] = useState<ConceptualUser | null>(null);
@@ -97,6 +117,53 @@ export default function AdminPage() {
     setDeletingUser(null);
   };
 
+  const handleCreateUserInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    setNewUser(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  const handleCreateUserRoleChange = (value: UserRole) => {
+    setNewUser(prev => ({ ...prev, role: value }));
+  };
+
+  const handleCreateUserPermissionChange = (permission: keyof Omit<NewUserFormData, 'email' | 'role' | 'password'>, checked: boolean) => {
+    setNewUser(prev => ({ ...prev, [permission]: checked }));
+  };
+
+  const handleCreateUserSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsCreatingUser(true);
+    try {
+      const result = await createUserWithRole(newUser);
+      if (result.success && result.userId && result.email && result.role) {
+        const createdConceptualUser: ConceptualUser = {
+            id: result.userId,
+            email: result.email,
+            role: result.role,
+            password: newUser.password, // Keep conceptual password if needed
+            canUploadDocs: result.canUploadDocs,
+            canReviewDocs: result.canReviewDocs,
+            canApproveMedication: result.canApproveMedication,
+            isSystemUser: false, // Newly created are not system users
+        };
+        setSystemUsers(prev => [createdConceptualUser, ...prev]);
+        toast({ title: "User Created (Session)", description: result.message });
+        setIsCreateUserDialogOpen(false);
+        setNewUser(initialNewUserState); // Reset form
+      } else {
+        toast({ variant: "destructive", title: "Creation Failed", description: result.message });
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: `Failed to create user: ${error.message}` });
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     if (!searchTerm) return systemUsers;
     return systemUsers.filter(user => 
@@ -142,6 +209,65 @@ export default function AdminPage() {
             </h1>
             <p className="text-muted-foreground">Manage system settings and view users.</p>
         </div>
+        <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="mr-2 h-5 w-5" /> Add New User (Session)
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle>Create New User (Conceptual)</DialogTitle>
+              <DialogDescription>
+                This user will be added to the admin view for this session only and is conceptual.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateUserSubmit} className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newUserEmail" className="text-right">Email</Label>
+                <Input id="newUserEmail" name="email" value={newUser.email} onChange={handleCreateUserInputChange} className="col-span-3" required type="email" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newUserPassword" className="text-right">Password</Label>
+                <Input id="newUserPassword" name="password" value={newUser.password || ''} onChange={handleCreateUserInputChange} className="col-span-3" required type="password" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newUserRole" className="text-right">Role</Label>
+                <Select name="role" value={newUser.role} onValueChange={(value: UserRole) => handleCreateUserRoleChange(value)}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                    <SelectItem value="technician">Technician</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-4 space-y-2 pt-2">
+                <Label className="font-semibold">Permissions:</Label>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="canUploadDocs" name="canUploadDocs" checked={newUser.canUploadDocs} onCheckedChange={(checked) => handleCreateUserPermissionChange('canUploadDocs', Boolean(checked))} />
+                    <Label htmlFor="canUploadDocs" className="font-normal">Can Upload Documents</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="canReviewDocs" name="canReviewDocs" checked={newUser.canReviewDocs} onCheckedChange={(checked) => handleCreateUserPermissionChange('canReviewDocs', Boolean(checked))} />
+                    <Label htmlFor="canReviewDocs" className="font-normal">Can Review Documents</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="canApproveMedication" name="canApproveMedication" checked={newUser.canApproveMedication} onCheckedChange={(checked) => handleCreateUserPermissionChange('canApproveMedication', Boolean(checked))} />
+                    <Label htmlFor="canApproveMedication" className="font-normal">Can Approve Medication</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={isCreatingUser}>
+                  {isCreatingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create User
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
@@ -151,7 +277,7 @@ export default function AdminPage() {
             System Users
           </CardTitle>
           <CardDescription>
-            View and search system users. Users removed from this view are for this session only and can still log in if they are hardcoded system users.
+            View and search system users. Users removed from this view are for this session only and can still log in if they are hardcoded system users. Newly created users are conceptual and only exist for this session.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
