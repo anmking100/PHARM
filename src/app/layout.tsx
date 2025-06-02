@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import AppHeader from '@/components/layout/AppHeader';
 import { AuthProvider } from '@/context/AuthContext';
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
-import { Logo } from '@/components/icons/Logo';
+// Logo import removed as it's no longer used directly in this file's body
 import Link from 'next/link';
 import { Home } from 'lucide-react';
 import { SidebarUserNavigation } from '@/components/layout/SidebarUserNavigation';
@@ -33,9 +33,7 @@ export default function RootLayout({
           <SidebarProvider>
             <Sidebar>
               <SidebarHeader className="p-4">
-                <Link href="/" className="flex items-center gap-2">
-                  <Logo />
-                </Link>
+                {/* Content of SidebarHeader (Logo and Link) removed */}
               </SidebarHeader>
               <SidebarContent>
                 <SidebarMenu>
