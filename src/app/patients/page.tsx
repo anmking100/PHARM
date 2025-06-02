@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Users, AlertTriangle, Info, Clock } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Info, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { MedicationData, MedicationStatus } from '@/lib/types';
 import { getAllPatientRecords } from '@/lib/patient-data';
 import { Button } from '@/components/ui/button';
@@ -30,11 +30,17 @@ const getStatusBadgeVariant = (status?: MedicationStatus) => {
   }
 };
 
+interface GroupedPatientData {
+  patientName: string;
+  records: MedicationData[]; // All records for this patient, sorted descending by date
+}
+
 export default function PatientsPage() {
   const { user, loading: authLoading, isAdmin, isPharmacist } = useAuth();
   const router = useRouter();
-  const [patientRecords, setPatientRecords] = useState<MedicationData[]>([]);
+  const [groupedPatientData, setGroupedPatientData] = useState<GroupedPatientData[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [expandedPatients, setExpandedPatients] = useState<Set<string>>(new Set());
 
   const canViewPage = isAdmin || isPharmacist;
 
@@ -43,19 +49,50 @@ export default function PatientsPage() {
       if (!user || !canViewPage) {
         router.replace('/login?redirect=/patients');
       } else {
-        const records = getAllPatientRecords();
-        // For this page, let's only show records that have been at least reviewed or packed.
-        setPatientRecords(records.filter(r => r.status === 'reviewed' || r.status === 'packed')
-                                  .sort((a, b) => {
-                                    // Sort by parsedAt descending (newest first)
-                                    const dateA = a.parsedAt ? new Date(a.parsedAt).getTime() : 0;
-                                    const dateB = b.parsedAt ? new Date(b.parsedAt).getTime() : 0;
-                                    return dateB - dateA;
-                                  }));
+        const allRecords = getAllPatientRecords();
+        const relevantRecords = allRecords.filter(r => r.status === 'reviewed' || r.status === 'packed');
+
+        const groupedByName = relevantRecords.reduce<Record<string, MedicationData[]>>((acc, record) => {
+          const name = record.patientName || 'Unknown Patient';
+          if (!acc[name]) {
+            acc[name] = [];
+          }
+          acc[name].push(record);
+          return acc;
+        }, {});
+
+        const processedData = Object.entries(groupedByName).map(([name, recordsList]) => {
+          const sortedRecords = recordsList.sort((a, b) => {
+            const dateA = a.parsedAt ? new Date(a.parsedAt).getTime() : 0;
+            const dateB = b.parsedAt ? new Date(b.parsedAt).getTime() : 0;
+            return dateB - dateA; // Sort descending, newest first
+          });
+          return {
+            patientName: name,
+            records: sortedRecords,
+          };
+        });
+        
+        // Sort patients alphabetically by name for consistent order in the main list
+        processedData.sort((a,b) => a.patientName.localeCompare(b.patientName));
+
+        setGroupedPatientData(processedData);
         setIsLoadingRecords(false);
       }
     }
   }, [user, authLoading, isAdmin, isPharmacist, router, canViewPage]);
+
+  const togglePatientExpansion = (patientName: string) => {
+    setExpandedPatients(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(patientName)) {
+        newSet.delete(patientName);
+      } else {
+        newSet.add(patientName);
+      }
+      return newSet;
+    });
+  };
 
   if (authLoading || isLoadingRecords) {
     return (
@@ -92,7 +129,7 @@ export default function PatientsPage() {
             Patient Records
           </h1>
           <p className="text-muted-foreground">
-            View all reviewed and packed prescription records. Sorted by most recently parsed.
+            View reviewed and packed prescription records. Click patient name to see history.
           </p>
         </div>
       </div>
@@ -101,60 +138,112 @@ export default function PatientsPage() {
         <CardHeader>
           <CardTitle>Prescription List</CardTitle>
           <CardDescription>
-            The table below shows medication records that have been reviewed or packed.
+            The table shows the most recent reviewed or packed record per patient.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {patientRecords.length === 0 ? (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertTitle>No Records Found</AlertTitle>
-              <AlertDescription>
-                There are no patient records that have been marked as 'reviewed' or 'packed' yet. 
-                Process and save prescriptions on the home page to populate this list.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Table>
-              <TableHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Patient Name</TableHead>
+                <TableHead>Medication</TableHead>
+                <TableHead>Dosage</TableHead>
+                <TableHead className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  Parsed At
+                </TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groupedPatientData.length === 0 && !isLoadingRecords ? (
                 <TableRow>
-                  <TableHead>Patient Name</TableHead>
-                  <TableHead>Medication</TableHead>
-                  <TableHead>Dosage</TableHead>
-                  {/* <TableHead>Frequency</TableHead> */}
-                  {/* <TableHead>Prescribing Doctor</TableHead> */}
-                  <TableHead className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    Parsed At
-                  </TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    No reviewed or packed patient records found. Process prescriptions on the home page.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {patientRecords.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>{record.patientName || 'N/A'}</TableCell>
-                    <TableCell>{record.medicationName || 'N/A'}</TableCell>
-                    <TableCell>{record.dosage || 'N/A'}</TableCell>
-                    {/* <TableCell>{record.frequency || 'N/A'}</TableCell> */}
-                    {/* <TableCell>{record.prescribingDoctor || 'N/A'}</TableCell> */}
-                    <TableCell>
-                      {record.parsedAt ? format(new Date(record.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      {record.status && (
-                        <Badge variant={getStatusBadgeVariant(record.status)}>
-                          {statusDisplay[record.status] || 'Unknown'}
-                        </Badge>
+              ) : (
+                groupedPatientData.map(({ patientName, records }) => {
+                  const mostRecentRecord = records[0];
+                  const isExpanded = expandedPatients.has(patientName);
+                  return (
+                    <React.Fragment key={patientName}>
+                      <TableRow className={isExpanded ? "bg-accent/10" : ""}>
+                        <TableCell className="font-medium">
+                          <Button 
+                            variant="ghost" 
+                            onClick={() => togglePatientExpansion(patientName)}
+                            className="p-1 h-auto justify-start w-full text-left hover:bg-accent/20"
+                            aria-expanded={isExpanded}
+                            aria-controls={`patient-history-${patientName.replace(/\s+/g, '-')}`}
+                          >
+                            {isExpanded 
+                              ? <ChevronUp className="h-4 w-4 mr-2 shrink-0" /> 
+                              : <ChevronDown className="h-4 w-4 mr-2 shrink-0" />}
+                            {patientName || 'N/A'} ({records.length} record{records.length === 1 ? '' : 's'})
+                          </Button>
+                        </TableCell>
+                        <TableCell>{mostRecentRecord?.medicationName || 'N/A'}</TableCell>
+                        <TableCell>{mostRecentRecord?.dosage || 'N/A'}</TableCell>
+                        <TableCell>
+                          {mostRecentRecord?.parsedAt ? format(new Date(mostRecentRecord.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {mostRecentRecord?.status && (
+                            <Badge variant={getStatusBadgeVariant(mostRecentRecord.status)}>
+                              {statusDisplay[mostRecentRecord.status] || 'Unknown'}
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+
+                      {isExpanded && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="p-0">
+                            <div className="bg-muted/20 p-2 border-l-4 border-accent">
+                              <Table>
+                                <TableBody>
+                                  {records.slice(1).map((record, index) => (
+                                    <TableRow key={record.id || `${patientName}-hist-${index}`} className="hover:bg-muted/40">
+                                      <TableCell className="w-[25%] pl-6 text-xs text-muted-foreground">
+                                        {/* Intentionally left blank or could show date again */}
+                                      </TableCell>
+                                      <TableCell className="w-[20%] text-xs">{record.medicationName || 'N/A'}</TableCell>
+                                      <TableCell className="w-[15%] text-xs">{record.dosage || 'N/A'}</TableCell>
+                                      <TableCell className="w-[20%] text-xs">
+                                        {record.parsedAt ? format(new Date(record.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
+                                      </TableCell>
+                                      <TableCell className="w-[20%]">
+                                        {record.status && (
+                                          <Badge variant={getStatusBadgeVariant(record.status)} className="text-xs px-1.5 py-0.5">
+                                            {statusDisplay[record.status] || 'Unknown'}
+                                          </Badge>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                  {records.length === 1 && (
+                                     <TableRow>
+                                      <TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-2">
+                                        No other historical records for this patient.
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+                    </React.Fragment>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
   );
 }
+
