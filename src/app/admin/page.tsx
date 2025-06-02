@@ -13,7 +13,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogDescription, DialogFooter, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithRole } from "./actions"; 
+import { createUserWithRole } from "./actions";
 import type { UserRole, NewUserFormData } from "@/lib/types";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
@@ -119,7 +119,6 @@ export default function AdminPage() {
         </div>
     );
   }
-
 
   console.log('[AdminPage] Rendering admin dashboard content for:', authUser.email);
   return (
@@ -264,5 +263,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
