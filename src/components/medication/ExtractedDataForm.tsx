@@ -30,6 +30,7 @@ const statusDisplay: Record<MedicationStatus, string> = {
   pending_extraction: "Pending Extraction",
   pending_review: "Pending Review",
   reviewed: "Reviewed",
+  approved: "Approved", // Added approved
   packed: "Packed",
 };
 
@@ -53,13 +54,13 @@ export default function ExtractedDataForm({
     const { name, value, type, checked } = e.target;
     onDataChange(name as keyof MedicationData, type === 'checkbox' ? checked : value);
      if (name === "medicationName") {
-      setSideEffectsData(null); // Reset side effects if medication name changes
+      setSideEffectsData(null); 
       setSideEffectsError(null);
     }
   };
 
   const handleFetchSideEffects = async () => {
-    if (!data?.medicationName || !canEdit) return;
+    if (!data?.medicationName || !canEdit || currentStatus === 'packed') return;
 
     setIsFetchingSideEffects(true);
     setSideEffectsData(null);
@@ -132,13 +133,16 @@ export default function ExtractedDataForm({
     switch (status) {
       case 'pending_review': return 'destructive';
       case 'reviewed': return 'secondary';
+      case 'approved': return 'default';
       case 'packed': return 'default'; 
       default: return 'outline';
     }
   };
 
-  const isSaveDisabled = currentStatus === 'packed' || currentStatus === 'reviewed';
-  const isPackDisabled = currentStatus === 'packed' || (isTechnicianView && currentStatus !== 'reviewed');
+  const isFormDisabled = currentStatus === 'packed';
+  const isSaveDisabled = isFormDisabled || currentStatus === 'reviewed' || currentStatus === 'approved';
+  const isPackDisabled = isFormDisabled || (isTechnicianView && currentStatus !== 'reviewed' && currentStatus !== 'approved');
+
 
   const formattedParsedAt = data.parsedAt ? format(new Date(data.parsedAt), "PPpp") : 'N/A';
 
@@ -147,7 +151,7 @@ export default function ExtractedDataForm({
       <CardHeader>
         <div className="flex justify-between items-start">
           <CardTitle className="flex items-center gap-2 text-xl">
-            {canEdit ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
+            {canEdit && !isFormDisabled ? <Edit className="h-6 w-6 text-primary" /> : <ClipboardList className="h-6 w-6 text-primary" />}
             Extracted Medication Data
           </CardTitle>
           {currentStatus && (
@@ -157,11 +161,13 @@ export default function ExtractedDataForm({
           )}
         </div>
         <CardDescription>
-          {canEdit ? "Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention." : "View extracted prescription details."}
+          {isFormDisabled 
+            ? "This prescription is packed and cannot be modified." 
+            : (canEdit ? "Review and edit the data extracted by AI. Fields marked with an asterisk (*) may require attention." : "View extracted prescription details.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {data.isHandwritten && (
+        {data.isHandwritten && !isFormDisabled && (
           <Alert variant={canEdit ? "destructive" : "default"}>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Handwritten Prescription Detected</AlertTitle>
@@ -170,7 +176,7 @@ export default function ExtractedDataForm({
             </AlertDescription>
           </Alert>
         )}
-         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && (
+         {!data.isHandwritten && Object.entries(data).some(([key, val]) => key !== 'id' && key !== 'isHandwritten' && key !== 'status' && key !== 'parsedAt' && val === "" && typeof val === 'string') && !isFormDisabled &&(
           <Alert variant="default" className="bg-accent/10 border-accent/50 text-accent-foreground">
             <Info className="h-4 w-4 text-accent" />
             <AlertTitle>Missing Information</AlertTitle>
@@ -186,7 +192,7 @@ export default function ExtractedDataForm({
               <div className="grid gap-1.5">
                 <Label htmlFor={field.id} className="font-medium">
                   {field.label}
-                  {canEdit && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
+                  {canEdit && !isFormDisabled && (data[field.id] === "" || (field.id === 'prescribingDoctor' && data.isHandwritten)) && <span className="text-destructive ml-1">*</span>}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Input
@@ -196,10 +202,10 @@ export default function ExtractedDataForm({
                     value={data[field.id] as string}
                     onChange={handleInputChange}
                     placeholder={field.placeholder}
-                    readOnly={!canEdit}
-                    className={`flex-grow ${(canEdit && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
+                    disabled={!canEdit || isFormDisabled}
+                    className={`flex-grow ${(!isFormDisabled && canEdit && data[field.id] === "") ? "border-destructive ring-destructive focus-visible:ring-destructive" : ""}`}
                   />
-                  {field.hasSideEffectButton && canEdit && (
+                  {field.hasSideEffectButton && canEdit && !isFormDisabled && (
                     <Button
                       type="button"
                       variant="outline"
@@ -214,7 +220,7 @@ export default function ExtractedDataForm({
                   )}
                 </div>
               </div>
-              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && (
+              {field.id === "medicationName" && (isFetchingSideEffects || sideEffectsData || sideEffectsError) && !isFormDisabled && (
                 <div className="mt-2">
                   {isFetchingSideEffects && (
                     <Alert variant="default" className="bg-muted/50">
@@ -261,8 +267,8 @@ export default function ExtractedDataForm({
                 type="checkbox"
                 checked={data.isHandwritten}
                 onChange={handleInputChange}
-                className="h-4 w-4 accent-primary" // Using accent-primary for checkbox color
-                disabled={!canEdit}
+                className="h-4 w-4 accent-primary" 
+                disabled={!canEdit || isFormDisabled}
               />
             <Label htmlFor="isHandwritten" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               Is Handwritten?
@@ -288,7 +294,9 @@ export default function ExtractedDataForm({
         {canEdit && (
           <Button onClick={onSaveChanges} variant="default" disabled={isSaveDisabled}>
             <Save className="mr-2 h-4 w-4" />
-            {currentStatus === 'packed' ? 'Prescription Packed' : (currentStatus === 'reviewed' ? 'Already Reviewed' : 'Save Changes & Mark Reviewed')}
+            {currentStatus === 'packed' ? 'Prescription Packed' : 
+             (currentStatus === 'reviewed' || currentStatus === 'approved' ? 'Already Reviewed/Approved' : 
+             'Save Changes & Mark Reviewed')}
           </Button>
         )}
         {canPack && (

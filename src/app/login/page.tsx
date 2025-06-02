@@ -28,7 +28,10 @@ export default function LoginPage() {
     console.log('[LoginPage] useEffect check. User:', user?.email, 'AuthLoading:', authLoading);
     if (!authLoading && user) {
       const redirectParam = searchParams.get('redirect');
-      let targetUrl = redirectParam || (user.role === 'admin' ? '/admin' : '/');
+      let targetUrl = redirectParam || 
+                      (user.role === 'admin' ? '/admin' : 
+                      (user.role === 'technician' ? '/patients' : 
+                      '/'));
 
       // Prevent non-admins from being sent directly to /admin if that was the redirect param
       if (user.role !== 'admin' && targetUrl === '/admin') {
