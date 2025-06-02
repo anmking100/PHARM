@@ -16,26 +16,27 @@ import { useAuth } from '@/context/AuthContext';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Local loading state for form submission
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, loading: authLoading, isAdmin } = useAuth(); // Destructure isAdmin
+  const { user, loading: authLoading, isAdmin } = useAuth();
 
   useEffect(() => {
-    // This effect handles redirection if the user is successfully logged in (user object exists)
-    // AND authentication loading is complete.
-    if (!authLoading && user) {
+    console.log(`[LoginPage] useEffect - Checking redirect. User from context: ${user?.email}, AuthLoading from context: ${authLoading}, IsAdmin from context: ${isAdmin}`);
+    if (user && !authLoading) { // Condition: user exists AND auth is no longer loading
       const redirectUrl = searchParams.get('redirect') || '/';
-      console.log(`[LoginPage] useEffect redirect check. User: ${user?.email}, AuthLoading: ${authLoading}, IsAdmin: ${isAdmin}. Redirecting to: ${redirectUrl}`);
+      console.log(`[LoginPage] useEffect - Redirecting. User: ${user.email}, IsAdmin: ${isAdmin}. Redirect URL: ${redirectUrl}`);
       router.push(redirectUrl);
+    } else {
+      console.log(`[LoginPage] useEffect - Not redirecting. User from context: ${user?.email}, AuthLoading from context: ${authLoading}, IsAdmin from context: ${isAdmin}`);
     }
-  }, [user, authLoading, router, searchParams, isAdmin]); // Added isAdmin to dependency array
+  }, [user, authLoading, router, searchParams, isAdmin]);
 
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setIsLoading(true);
+    setIsLoading(true); // Start local loading for submit button
     try {
       const result = await signInUser(email, password);
       if (result.success) {
@@ -43,7 +44,8 @@ export default function LoginPage() {
           title: 'Login Successful',
           description: 'Welcome back!',
         });
-        // Redirection will be handled by the useEffect above once auth state updates
+        // Redirection will be handled by the useEffect above once auth state updates in AuthContext
+        // and propagates here.
       } else {
         let description = result.error || 'Invalid email or password.';
         if (result.errorCode === 'auth/invalid-credential') {
@@ -62,24 +64,34 @@ export default function LoginPage() {
         description: error.message || 'An unexpected error occurred.',
       });
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Stop local loading for submit button
     }
   };
   
-  // This block handles the case where the user is ALREADY logged in when they visit /login,
-  // or if auth is still loading initially.
-  if (authLoading || (!authLoading && user)) {
-    console.log(`[LoginPage] Initial loading/redirect block. User: ${user?.email}, AuthLoading: ${authLoading}, IsAdmin: ${isAdmin}`);
+  // This block handles what to render based on authentication state from AuthContext
+  if (authLoading) { // If AuthContext is loading (e.g. initial app load, or during onAuthStateChanged processing)
+    console.log(`[LoginPage] Render: AuthContext is loading. Displaying spinner. AuthLoading: ${authLoading}, User: ${user?.email}`);
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2 text-muted-foreground">Loading...</p>
+        <p className="ml-2 text-muted-foreground">Authenticating...</p>
       </div>
     );
   }
+  
+  // If here, authLoading from AuthContext is false.
+  if (user) { // User is logged in (AuthContext has user), auth is finished. Waiting for useEffect to redirect.
+      console.log(`[LoginPage] Render: User is logged in, AuthContext finished loading. Waiting for redirect. User: ${user.email}, IsAdmin: ${isAdmin}`);
+       return (
+        <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Finalizing login...</p>
+        </div>
+    );
+  }
 
-  // If here, authLoading is false and user is null, so show the login form.
-  console.log(`[LoginPage] Rendering login form. User: ${user?.email}, AuthLoading: ${authLoading}, IsAdmin: ${isAdmin}`);
+  // If here, authLoading is false AND user is null. Show the login form.
+  console.log(`[LoginPage] Render: Rendering login form. AuthLoading: ${authLoading}, User: ${user?.email}, IsAdmin: ${isAdmin}`);
   return (
     <div className="flex items-center justify-center py-12">
       <Card className="w-full max-w-md shadow-xl">
@@ -100,7 +112,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={isLoading} // Use local isLoading for form elements
                 autoComplete="email"
               />
             </div>
@@ -113,11 +125,11 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={isLoading}
+                disabled={isLoading} // Use local isLoading for form elements
                 autoComplete="current-password"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading}> {/* Use local isLoading */}
               {isLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

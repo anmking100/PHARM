@@ -8,58 +8,60 @@ import { onAuthStateChanged, type IdTokenResult } from 'firebase/auth';
 
 interface AuthContextType {
   user: User | null;
-  claims: IdTokenResult['claims'] | null; // We'll still store claims for other potential uses
+  claims: IdTokenResult['claims'] | null;
   isAdmin: boolean;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Define the hardcoded admin email
 const HARDCODED_ADMIN_EMAIL = 'admin@example.com';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [claims, setClaims] = useState<IdTokenResult['claims'] | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initialize to true
 
   useEffect(() => {
     console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true); 
+      setLoading(true); // Set loading true at the start of processing auth state
       if (currentUser) {
-        setUser(currentUser);
         const userEmail = currentUser.email;
         console.log('[AuthContext] onAuthStateChanged - User detected:', userEmail);
 
-        // Normalize emails for comparison
         const isHardcodedAdmin = userEmail?.toLowerCase() === HARDCODED_ADMIN_EMAIL.toLowerCase();
+        let newIsAdmin = false;
 
         if (isHardcodedAdmin) {
-          console.log(`[AuthContext] User ${userEmail} IS the hardcoded admin. Setting isAdmin = true.`);
-          setIsAdmin(true);
-          setClaims({ admin: true }); // Simulate admin claim for consistency if ever needed
+          console.log(`[AuthContext] User ${userEmail} IS the hardcoded admin.`);
+          newIsAdmin = true;
+          setClaims({ admin: true }); // Simulate admin claim for consistency
         } else {
-          console.log(`[AuthContext] User ${userEmail} is NOT the hardcoded admin. Setting isAdmin = false. Other claims will be fetched if necessary but admin status is false.`);
-          setIsAdmin(false); // Explicitly set to false for non-hardcoded admin users
-          // Fetch other claims if needed for other functionalities, but isAdmin is determined above.
+          console.log(`[AuthContext] User ${userEmail} is NOT the hardcoded admin. Will check for Firebase claims if needed, but isAdmin set to false for this path.`);
+          newIsAdmin = false; // Explicitly false for non-hardcoded admin
+          // For non-hardcoded admin, you might still want to fetch other claims if your app uses them
+          // For now, we are only hardcoding admin@example.com as admin.
           try {
-            const idTokenResult = await currentUser.getIdTokenResult(true); 
+            const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh for claims
             const userClaims = idTokenResult.claims;
             console.log('[AuthContext] Firebase claims for non-admin user:', userEmail, userClaims);
-            setClaims(userClaims); // Store other claims
+            setClaims(userClaims);
           } catch (error) {
             console.error("[AuthContext] Error fetching user claims for non-admin user:", userEmail, error);
             setClaims(null);
           }
         }
+        setUser(currentUser); // Set user before isAdmin for dependent effects
+        setIsAdmin(newIsAdmin);
+        console.log(`[AuthContext] States PRE-setLoading(false): user.email=${currentUser?.email}, newIsAdmin=${newIsAdmin}`);
       } else {
         console.log('[AuthContext] onAuthStateChanged - No user logged in.');
         setUser(null);
         setClaims(null);
         setIsAdmin(false);
-        console.log('[AuthContext] No user state: isAdmin = false, claims = null.');
+        console.log(`[AuthContext] States PRE-setLoading(false) (no user): user=null, isAdmin=false`);
       }
       setLoading(false);
       console.log('[AuthContext] Auth state processing complete. Loading set to false.');
@@ -70,8 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  if (loading && user === null) {
-    console.log('[AuthContext] Displaying initial loading screen.');
+  // This initial loading screen is for the very first app load, before onAuthStateChanged has fired.
+  if (loading && user === null && auth.currentUser === null) { // More precise condition for initial load
+    console.log('[AuthContext] Displaying initial application loading screen (Auth context not yet initialized).');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <svg className="animate-spin h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -83,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  console.log('[AuthContext] Rendering Provider with values: user.email=', user?.email, 'isAdmin=', isAdmin, 'loading=', loading, 'claims=', claims);
+  console.log('[AuthContext] Rendering Provider with values: user.email=', user?.email, 'isAdmin=', isAdmin, 'loading=', loading);
   return <AuthContext.Provider value={{ user, claims, isAdmin, loading }}>{children}</AuthContext.Provider>;
 }
 
