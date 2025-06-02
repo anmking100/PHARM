@@ -4,22 +4,42 @@
 import React, { useState, useEffect, type FormEvent, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare, Users2, Search, Edit3, Trash2 } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, UserPlus, UploadCloud, ClipboardCheck, CheckSquare, Users2, Search, Edit3, Trash2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { createUserWithRole } from './actions';
+import { createUserWithRole, getSystemUsers } from './actions';
 import type { UserRole, NewUserFormData, ConceptualUser } from '@/lib/types';
+import { HARDCODED_USERS_FOR_ADMIN_VIEW } from '../login/actions'; // For checking if user is hardcoded
 
+// Helper icon for XCircle, as it's not directly in lucide-react by that name
+const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <line x1="15" y1="9" x2="9" y2="15" />
+    <line x1="9" y1="9" x2="15" y2="15" />
+  </svg>
+);
 
 export default function AdminPage() {
   const { user: authUser, loading: authLoading, isAdmin } = useAuth();
@@ -37,7 +57,8 @@ export default function AdminPage() {
   const [createUserError, setCreateUserError] = useState<string | null>(null);
 
   // State for user management
-  const [conceptualUsers, setConceptualUsers] = useState<ConceptualUser[]>([]);
+  const [systemUsers, setSystemUsers] = useState<ConceptualUser[]>([]);
+  const [isLoadingSystemUsers, setIsLoadingSystemUsers] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   // State for editing user
@@ -56,6 +77,26 @@ export default function AdminPage() {
     }
   }, [authUser, authLoading, isAdmin, router]);
 
+  useEffect(() => {
+    async function fetchUsers() {
+      if (isAdmin) {
+        setIsLoadingSystemUsers(true);
+        try {
+          const users = await getSystemUsers();
+          setSystemUsers(users);
+        } catch (error) {
+          console.error("Failed to fetch system users:", error);
+          toast({ variant: "destructive", title: "Error", description: "Could not load system users." });
+        } finally {
+          setIsLoadingSystemUsers(false);
+        }
+      }
+    }
+    if (!authLoading && authUser && isAdmin) {
+      fetchUsers();
+    }
+  }, [isAdmin, authUser, authLoading, toast]);
+
   const handleCreateUserSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateUserError(null);
@@ -68,6 +109,11 @@ export default function AdminPage() {
       setCreateUserError("Password must be at least 6 characters.");
       return;
     }
+     if (systemUsers.some(user => user.email.toLowerCase() === newUserEmail.toLowerCase())) {
+      setCreateUserError("A user with this email already exists in the list.");
+      return;
+    }
+
 
     setIsSubmittingUser(true);
     const userData: NewUserFormData = {
@@ -82,20 +128,20 @@ export default function AdminPage() {
     const result = await createUserWithRole(userData);
     setIsSubmittingUser(false);
 
-    if (result.success && result.email && result.role) {
+    if (result.success && result.email && result.role && result.userId) {
       const newConceptualUser: ConceptualUser = {
-        id: `mock_user_${Date.now()}`,
+        id: result.userId, // Use ID from server action
         email: result.email,
         role: result.role,
-        password: newUserPassword, // conceptually store password too
+        password: newUserPassword,
         canUploadDocs: result.canUploadDocs,
         canReviewDocs: result.canReviewDocs,
         canApproveMedication: result.canApproveMedication,
       };
-      setConceptualUsers(prev => [...prev, newConceptualUser]);
+      setSystemUsers(prev => [...prev, newConceptualUser]);
       toast({
-        title: 'User Created (Conceptual)',
-        description: result.message || `User ${result.email} (${result.role}) conceptually created.`,
+        title: 'User Created (Session)',
+        description: result.message || `User ${result.email} (${result.role}) added to admin view for this session.`,
       });
       setNewUserEmail('');
       setNewUserPassword('');
@@ -116,7 +162,7 @@ export default function AdminPage() {
 
   const handleOpenEditDialog = (userToEdit: ConceptualUser) => {
     setEditingUser(userToEdit);
-    setEditUserForm({ // Initialize form with user's current data
+    setEditUserForm({ 
       role: userToEdit.role,
       canUploadDocs: userToEdit.canUploadDocs,
       canReviewDocs: userToEdit.canReviewDocs,
@@ -125,13 +171,18 @@ export default function AdminPage() {
     setIsEditUserDialogOpen(true);
   };
 
-  const handleEditUserFormChange = (field: keyof ConceptualUser, value: string | boolean) => {
-    setEditUserForm(prev => ({ ...prev, [field]: value }));
+  const handleEditUserFormChange = (field: keyof ConceptualUser, value: string | boolean | undefined) => {
+     if (typeof value === 'boolean' || typeof value === 'string') {
+        setEditUserForm(prev => ({ ...prev, [field]: value }));
+     }
   };
 
   const handleSaveUserChanges = () => {
     if (!editingUser || !editUserForm.role) return;
-    setConceptualUsers(prevUsers => 
+    
+    const isOriginalHardcoded = Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(editingUser.email);
+    
+    setSystemUsers(prevUsers => 
       prevUsers.map(u => 
         u.id === editingUser.id 
         ? { ...u, 
@@ -143,7 +194,11 @@ export default function AdminPage() {
         : u
       )
     );
-    toast({ title: 'User Updated', description: `Permissions for ${editingUser.email} updated conceptually.` });
+    let toastDescription = `Permissions and/or role for ${editingUser.email} updated for this session.`;
+    if (isOriginalHardcoded && editingUser.role !== editUserForm.role) {
+        toastDescription += ` Original login role from system remains '${editingUser.role}'.`;
+    }
+    toast({ title: 'User Updated (Session)', description: toastDescription });
     setIsEditUserDialogOpen(false);
     setEditingUser(null);
   };
@@ -155,21 +210,29 @@ export default function AdminPage() {
 
   const handleDeleteUser = () => {
     if (!deletingUser) return;
-    setConceptualUsers(prevUsers => prevUsers.filter(u => u.id !== deletingUser.id));
-    toast({ title: 'User Deleted', description: `User ${deletingUser.email} deleted conceptually.` });
+
+    const isOriginalHardcoded = Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(deletingUser.email);
+    
+    setSystemUsers(prevUsers => prevUsers.filter(u => u.id !== deletingUser.id));
+
+    let toastDescription = `User ${deletingUser.email} removed from admin view for this session.`;
+    if (isOriginalHardcoded) {
+        toastDescription += ` This user can still log in with original credentials.`;
+    }
+    toast({ title: 'User Removed (Session)', description: toastDescription });
     setIsDeleteUserConfirmOpen(false);
     setDeletingUser(null);
   };
 
   const filteredUsers = useMemo(() => {
-    if (!searchTerm) return conceptualUsers;
-    return conceptualUsers.filter(user => 
+    if (!searchTerm) return systemUsers;
+    return systemUsers.filter(user => 
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [conceptualUsers, searchTerm]);
+  }, [systemUsers, searchTerm]);
 
 
-  if (authLoading || (!authUser && !authLoading)) {
+  if (authLoading || (!authUser && !authLoading) || (isAdmin && isLoadingSystemUsers)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -305,9 +368,13 @@ export default function AdminPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users2 className="mr-2 h-5 w-5" />
-            Manage Users (Conceptual)
+            Manage System Users
           </CardTitle>
-          <CardDescription>View, search, edit, and delete conceptually created users.</CardDescription>
+          <CardDescription>
+            View, search, and manage roles & permissions for system users. 
+            Changes to hardcoded users are for this session's view only.
+            Newly created users are also session-only.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-2">
@@ -320,13 +387,18 @@ export default function AdminPage() {
             />
           </div>
 
-          {filteredUsers.length > 0 ? (
+          {isLoadingSystemUsers ? (
+             <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-3 text-muted-foreground">Loading users...</p>
+            </div>
+          ) : filteredUsers.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
+                    <TableHead>Role (Session)</TableHead>
                     <TableHead>Upload</TableHead>
                     <TableHead>Review</TableHead>
                     <TableHead>Approve</TableHead>
@@ -336,19 +408,17 @@ export default function AdminPage() {
                 <TableBody>
                   {filteredUsers.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.email}</TableCell>
+                      <TableCell className="font-medium">{user.email} {Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(user.email) && <Badge variant="outline" className="ml-2">System</Badge>}</TableCell>
                       <TableCell><Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge></TableCell>
                       <TableCell>{user.canUploadDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
                       <TableCell>{user.canReviewDocs ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
                       <TableCell>{user.canApproveMedication ? <CheckSquare className="h-5 w-5 text-green-600"/> : <XCircleIcon className="h-5 w-5 text-red-600"/>}</TableCell>
                       <TableCell className="space-x-2">
-                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(user)}>
+                        <Button variant="outline" size="icon" onClick={() => handleOpenEditDialog(user)} aria-label={`Edit user ${user.email}`}>
                           <Edit3 className="h-4 w-4" />
-                          <span className="sr-only">Edit User</span>
                         </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleOpenDeleteConfirm(user)}>
+                        <Button variant="destructive" size="icon" onClick={() => handleOpenDeleteConfirm(user)} aria-label={`Delete user ${user.email}`}>
                           <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete User</span>
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -358,7 +428,7 @@ export default function AdminPage() {
             </div>
           ) : (
             <p className="text-muted-foreground text-center py-4">
-              {conceptualUsers.length === 0 ? "No users created yet." : "No users match your search."}
+              {systemUsers.length === 0 ? "No system users found or loaded." : "No users match your search."}
             </p>
           )}
         </CardContent>
@@ -369,7 +439,7 @@ export default function AdminPage() {
         <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit User: {editingUser.email}</DialogTitle>
+              <DialogTitle>Edit User (Session): {editingUser.email}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid gap-2">
@@ -387,13 +457,16 @@ export default function AdminPage() {
                     <SelectItem value="technician">Technician</SelectItem>
                   </SelectContent>
                 </Select>
+                 {Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(editingUser.email) && editingUser.role !== editUserForm.role && (
+                    <p className="text-xs text-muted-foreground pt-1">Note: Changing role here is for session view only. Original login role is '{editingUser.role}'.</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label className="font-medium">Permissions</Label>
+                <Label className="font-medium">Permissions (Session)</Label>
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="edit-canUploadDocs" 
-                    checked={editUserForm.canUploadDocs} 
+                    checked={!!editUserForm.canUploadDocs} 
                     onCheckedChange={(checked) => handleEditUserFormChange('canUploadDocs', checked as boolean)}
                   />
                   <Label htmlFor="edit-canUploadDocs" className="font-normal flex items-center gap-1">
@@ -403,7 +476,7 @@ export default function AdminPage() {
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="edit-canReviewDocs" 
-                    checked={editUserForm.canReviewDocs} 
+                    checked={!!editUserForm.canReviewDocs} 
                     onCheckedChange={(checked) => handleEditUserFormChange('canReviewDocs', checked as boolean)}
                   />
                   <Label htmlFor="edit-canReviewDocs" className="font-normal flex items-center gap-1">
@@ -413,7 +486,7 @@ export default function AdminPage() {
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="edit-canApproveMedication" 
-                    checked={editUserForm.canApproveMedication} 
+                    checked={!!editUserForm.canApproveMedication} 
                     onCheckedChange={(checked) => handleEditUserFormChange('canApproveMedication', checked as boolean)}
                   />
                   <Label htmlFor="edit-canApproveMedication" className="font-normal flex items-center gap-1">
@@ -437,12 +510,16 @@ export default function AdminPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action will conceptually delete the user <span className="font-semibold">{deletingUser.email}</span>. This cannot be undone.
+                This action will remove user <span className="font-semibold">{deletingUser.email}</span> from the admin view for this session. 
+                {Object.keys(HARDCODED_USERS_FOR_ADMIN_VIEW).includes(deletingUser.email) 
+                    ? " This user is a system user and can still log in with their original credentials."
+                    : " This user was conceptually created and will be removed."
+                }
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => setDeletingUser(null)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteUser} className={buttonVariants({variant: "destructive"})}>Delete</AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteUser} className={buttonVariants({variant: "destructive"})}>Remove from View</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -452,24 +529,3 @@ export default function AdminPage() {
   );
 }
 
-// Helper icon for XCircle, as it's not directly in lucide-react
-const XCircleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <line x1="15" y1="9" x2="9" y2="15" />
-    <line x1="9" y1="9" x2="15" y2="15" />
-  </svg>
-);
-// Make sure to import buttonVariants if using it for AlertDialogAction styling
-import { buttonVariants } from '@/components/ui/button';

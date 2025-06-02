@@ -1,9 +1,24 @@
 
 'use server';
 
-import type { NewUserFormData, UserRole } from '@/lib/types';
-// Firebase Admin SDK import is removed as we are making user creation conceptual
-// import adminInstance from '@/lib/firebase/admin'; // No longer attempting Firebase Admin SDK for now
+import type { NewUserFormData, UserRole, ConceptualUser } from '@/lib/types';
+import { HARDCODED_USERS_FOR_ADMIN_VIEW } from '../login/actions';
+
+export async function getSystemUsers(): Promise<ConceptualUser[]> {
+  return Object.entries(HARDCODED_USERS_FOR_ADMIN_VIEW).map(([email, data]) => {
+    const isPrivileged = data.role === 'admin' || data.role === 'pharmacist';
+    return {
+      id: email, // Use email as ID for hardcoded users
+      email: email,
+      role: data.role,
+      password: data.password, // Store password conceptually, not displayed
+      canUploadDocs: data.role === 'admin' || data.role === 'pharmacist' || data.role === 'technician', // Technicians can also upload
+      canReviewDocs: isPrivileged,
+      canApproveMedication: isPrivileged,
+    };
+  });
+}
+
 
 export async function createUserWithRole(
   userData: NewUserFormData
@@ -38,7 +53,7 @@ export async function createUserWithRole(
     
     return { 
       success: true, 
-      message: `User ${userData.email} (${userData.role}) conceptually created with specified permissions.`,
+      message: `User ${userData.email} (${userData.role}) conceptually created with specified permissions. This user is added to the admin view for this session only.`,
       userId: mockUserId,
       email: userData.email,
       role: userData.role,
