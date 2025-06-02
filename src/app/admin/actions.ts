@@ -38,7 +38,7 @@ export async function createUserWithRole(
       console.error('[AdminAction] Firebase Admin SDK is not initialized (no apps found). User creation will be purely conceptual. Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly and the server has restarted.');
       // Fallback to conceptual creation if Admin SDK isn't working
       const mockUserId = `mock_user_${Date.now()}`;
-      console.log(`Conceptual user ${userData.email} with role ${userData.role} created with ID: ${mockUserId}. (Admin SDK not initialized)`);
+      console.log(`[AdminAction] Conceptual user ${userData.email} with role ${userData.role} created with ID: ${mockUserId}. (Admin SDK not initialized)`);
       return { 
         success: true, 
         message: `User ${userData.email} (${userData.role}) conceptually created (Admin SDK not initialized).`,
@@ -73,16 +73,22 @@ export async function createUserWithRole(
     };
 
   } catch (error: any) {
-    console.error('[AdminAction] Error creating user with Firebase Admin SDK:', error);
-    let errorMessage = 'Failed to create user with Firebase.';
+    console.error('[AdminAction] Error creating user with Firebase Admin SDK. Full error object:', error);
+    console.error(`[AdminAction] Error Code: ${error.code}, Error Message: ${error.message}`);
+    
+    let errorMessage = 'Failed to create user with Firebase.'; // Default message
+
     if (error.code === 'auth/email-already-exists') {
       errorMessage = 'This email address is already in use.';
     } else if (error.code === 'auth/invalid-password') {
       errorMessage = 'Password must be at least 6 characters long.';
-    } else if (error.message && error.message.includes("The default Firebase app does not exist")) {
-        errorMessage = "Firebase Admin SDK not properly initialized. User creation failed. Check server logs for initialization errors and ensure GOOGLE_APPLICATION_CREDENTIALS is set.";
-    } else if (error.message && error.message.includes("Must initialize app")) { // Should be caught by adminInstance.apps.length check
-        errorMessage = "Firebase Admin SDK not initialized. User creation failed.";
+    } else if (error.message && error.message.toLowerCase().includes("the default firebase app does not exist")) {
+        errorMessage = "Firebase Admin SDK not properly initialized. User creation failed. Check server logs for initialization errors and ensure GOOGLE_APPLICATION_CREDENTIALS is set and server restarted.";
+    } else if (error.message && error.message.toLowerCase().includes("must initialize app")) {
+        errorMessage = "Firebase Admin SDK not initialized. User creation failed. Check server logs and ensure GOOGLE_APPLICATION_CREDENTIALS is set and server restarted.";
+    } else if (error.message) {
+        // If no specific code matched, but there's an error message, use it.
+        errorMessage = `Firebase user creation failed: ${error.message}`;
     }
 
 
@@ -93,3 +99,4 @@ export async function createUserWithRole(
     };
   }
 }
+
