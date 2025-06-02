@@ -6,7 +6,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,11 +17,11 @@ import type { UserRole, NewUserFormData } from '@/lib/types';
 
 
 export default function AdminPage() {
-  const { user: authUser, loading: authLoading, role: authUserRole } = useAuth();
+  const { user: authUser, loading: authLoading, authUserRole } = useAuth(); // Changed role to authUserRole for clarity
   const router = useRouter();
   const { toast } = useToast();
 
-  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  // State for the inline form
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('technician'); // Default role
@@ -64,11 +63,11 @@ export default function AdminPage() {
         title: 'User Created (Conceptual)',
         description: result.message || `User ${result.email} (${result.role}) conceptually created.`,
       });
-      setIsCreateUserDialogOpen(false);
       // Reset form fields
       setNewUserEmail('');
       setNewUserPassword('');
       setNewUserRole('technician');
+      setCreateUserError(null);
     } else {
       setCreateUserError(result.message);
       toast({
@@ -89,7 +88,6 @@ export default function AdminPage() {
   }
   
   if (!authUser || authUserRole !== 'admin') {
-     // Redirect is handled by useEffect, this is a fallback message or can be a more styled "Access Denied" component.
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
             <Alert variant="destructive" className="max-w-md">
@@ -114,97 +112,71 @@ export default function AdminPage() {
             </h1>
             <p className="text-muted-foreground">Manage users and system settings.</p>
         </div>
-        <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" /> Create New User
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-              <DialogDescription>
-                Enter the details for the new user. Password must be at least 6 characters.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateUserSubmit}>
-              <div className="grid gap-4 py-4">
-                {createUserError && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{createUserError}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email-new" className="text-right">
-                    Email
-                  </Label>
-                  <Input
-                    id="email-new"
-                    type="email"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    className="col-span-3"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="password-new" className="text-right">
-                    Password
-                  </Label>
-                  <Input
-                    id="password-new"
-                    type="password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    className="col-span-3"
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="role-new" className="text-right">
-                    Role
-                  </Label>
-                  <Select value={newUserRole} onValueChange={(value) => setNewUserRole(value as UserRole)}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="pharmacist">Pharmacist</SelectItem>
-                      <SelectItem value="technician">Technician</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsCreateUserDialogOpen(false)} disabled={isSubmittingUser}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmittingUser}>
-                  {isSubmittingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create User
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* Button to trigger dialog is removed */}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>User Management (Conceptual)</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="mr-2 h-5 w-5" /> 
+            Create New User (Conceptual)
+          </CardTitle>
           <CardDescription>
-            This section is for conceptual user management. Users created here are not stored persistently.
+            Enter the details for the new user. Password must be at least 6 characters. Users created here are not stored persistently.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            Use the "Create New User" button above to add a conceptual user. 
-            A full user list and persistent storage are not yet implemented.
-          </p>
+          <form onSubmit={handleCreateUserSubmit} className="space-y-6">
+            {createUserError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{createUserError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="email-new">Email</Label>
+              <Input
+                id="email-new"
+                type="email"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                required
+                placeholder="user@example.com"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password-new">Password</Label>
+              <Input
+                id="password-new"
+                type="password"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                required
+                minLength={6}
+                placeholder="min. 6 characters"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="role-new">Role</Label>
+              <Select value={newUserRole} onValueChange={(value) => setNewUserRole(value as UserRole)}>
+                <SelectTrigger id="role-new">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                  <SelectItem value="technician">Technician</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSubmittingUser}>
+                {isSubmittingUser && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create User
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 
