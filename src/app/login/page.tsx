@@ -27,20 +27,34 @@ export default function LoginPage() {
   useEffect(() => {
     console.log('[LoginPage] useEffect check. User:', user?.email, 'AuthLoading:', authLoading);
     if (!authLoading && user) {
-      const redirectParam = searchParams.get('redirect');
-      let targetUrl = redirectParam || 
-                      (user.role === 'admin' ? '/admin' : 
-                      (user.role === 'technician' ? '/patients' : 
-                      '/'));
+        const redirectParam = searchParams.get('redirect');
+        let targetUrl: string;
 
-      // Prevent non-admins from being sent directly to /admin if that was the redirect param
-      if (user.role !== 'admin' && targetUrl === '/admin') {
-        console.log(`[LoginPage] Non-admin (${user.role}) attempted redirect to /admin. Overriding to /.`);
-        targetUrl = '/';
-      }
-      
-      console.log(`[LoginPage] User logged in (${user.role}). Redirecting to ${targetUrl}`);
-      router.replace(targetUrl);
+        if (user.role === 'technician') {
+            targetUrl = '/patients'; // Default for technician
+            // If a specific, valid (non-root, non-admin) redirect was requested, honor it
+            if (redirectParam && redirectParam !== '/' && redirectParam !== '/admin') {
+                targetUrl = redirectParam;
+            }
+        } else if (user.role === 'admin') {
+            targetUrl = redirectParam || '/admin'; // Default for admin
+        } else { // pharmacist or other non-admin, non-technician roles
+            targetUrl = redirectParam || '/'; // Default for others
+        }
+
+        // Final safety check: Non-admins should never land on /admin if it was the target by redirectParam
+        if (user.role !== 'admin' && targetUrl === '/admin') {
+            console.log(`[LoginPage] Non-admin (${user.role}) attempted redirect to /admin. Overriding to default for role.`);
+            // Re-evaluate default based on role if /admin was targeted inappropriately
+            if (user.role === 'technician') {
+                targetUrl = '/patients';
+            } else { // e.g. pharmacist
+                targetUrl = '/';
+            }
+        }
+        
+        console.log(`[LoginPage] User logged in (${user.role}). Determined redirect to ${targetUrl} (redirectParam was: ${redirectParam})`);
+        router.replace(targetUrl);
     }
   }, [user, authLoading, router, searchParams]);
 
