@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useEffect, type FormEvent } from "react";
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,14 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle } from "lucide-react"; // ShieldAlert removed
-import Link from "next/link";
-// useAuth, useRouter removed
-// import { useAuth } from "@/context/AuthContext";
-// import { useRouter } from "next/navigation";
+import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createUserWithRole } from "./actions";
+import { createUserWithRole } from "./actions"; // This remains conceptual
 import type { AppUser, UserRole, NewUserFormData } from "@/lib/types";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+
 
 const initialUsers: AppUser[] = [
   { id: '1', email: 'admin@example.com', role: 'admin' },
@@ -27,8 +27,8 @@ const initialUsers: AppUser[] = [
 const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  // const { user, isAdmin, loading: authLoading } = useAuth(); // Removed useAuth
-  // const router = useRouter(); // Removed
+  const { user, isAdmin, loading: authLoading } = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
 
   const [users, setUsers] = useState<AppUser[]>(initialUsers);
@@ -41,9 +41,21 @@ export default function AdminPage() {
     role: 'technician',
   });
 
-  // useEffect for redirection removed
-  // console.log('[AdminPage] Render cycle. Auth checks removed (hardcoded admin).');
-
+  useEffect(() => {
+    console.log('[AdminPage] Auth state check. AuthLoading:', authLoading, 'User:', user?.email, 'IsAdmin:', isAdmin);
+    if (!authLoading && !user) {
+      console.log('[AdminPage] Not logged in, redirecting to /login.');
+      router.replace('/login?redirect=/admin');
+    } else if (!authLoading && user && !isAdmin) {
+      console.log('[AdminPage] Logged in but not admin, redirecting to /.');
+      router.replace('/');
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "You do not have permission to access the admin panel.",
+      });
+    }
+  }, [user, isAdmin, authLoading, router, toast]);
 
   const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -62,7 +74,6 @@ export default function AdminPage() {
     }
     setIsSubmittingUser(true);
     try {
-      // createUserWithRole is still conceptual
       const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
       if (result.success && result.userId) {
         setUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: newUserForm.email, role: newUserForm.role }]);
@@ -79,8 +90,34 @@ export default function AdminPage() {
     }
   };
 
-  // All loading, user, and isAdmin checks are removed. The page content is rendered directly.
-  console.log('[AdminPage] Rendering admin dashboard content (hardcoded admin access).');
+  if (authLoading) {
+    console.log('[AdminPage] Auth loading, showing spinner.');
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-24">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading admin panel...</p>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+     console.log('[AdminPage] User not authenticated or not admin, showing access denied or redirecting.');
+    // This state should ideally be handled by the useEffect redirect,
+    // but as a fallback, show a message or null.
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+            <Alert variant="destructive" className="max-w-md">
+                <AlertTriangle className="h-5 w-5" />
+                <AlertTitle>Access Denied</AlertTitle>
+                <AlertDescription>
+                    You do not have permission to view this page. Redirecting...
+                </AlertDescription>
+            </Alert>
+        </div>
+    );
+  }
+
+  console.log('[AdminPage] Rendering admin dashboard content.');
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -220,32 +257,6 @@ export default function AdminPage() {
             </Button>
           </CardContent>
         </Card>
-
-       <div className="mt-8 p-6 bg-card border rounded-lg shadow-sm">
-        <h3 className="text-lg font-semibold mb-3 text-primary flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Next Steps & Considerations:</h3>
-        <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2">
-            <li>
-              <strong>Authentication Removed:</strong> The application now assumes a single admin user is always active. For a real app, re-implement Firebase Authentication.
-            </li>
-            <li>
-              <strong>Secure User Creation:</strong> Implement actual user creation and role assignment using Firebase Admin SDK in a secure backend environment (e.g., Firebase Callable Function or a Next.js API route protected for admins). The current `createUserWithRole` server action is conceptual.
-            </li>
-            <li>
-              <strong>Role & Permission Management:</strong>
-                <ul>
-                    <li>Define roles (e.g., 'admin', 'pharmacist') and associated permissions.</li>
-                    <li>Store roles/permissions in Firestore and link them to users, or use Firebase Custom Claims for roles.</li>
-                    <li>Implement UI for editing roles/permissions (the "Edit Role" button is a placeholder).</li>
-                </ul>
-            </li>
-            <li>
-              <strong>Fetch Real Users:</strong> Replace mock user data with actual users fetched from Firebase Authentication (requires Admin SDK for full list or careful client-side management for limited views) if auth is re-added.
-            </li>
-            <li>
-              <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control once roles are implemented with real authentication.
-            </li>
-        </ul>
-      </div>
     </div>
   );
 }

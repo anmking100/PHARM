@@ -1,70 +1,87 @@
 
 'use client';
 
-import type { User } from 'firebase/auth'; // Keep type for mock user structure
-import { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
-// Firebase auth import removed: import { auth } from '@/lib/firebase/client';
-// Firebase onAuthStateChanged import removed: import { onAuthStateChanged, type IdTokenResult } from 'firebase/auth';
+import { createContext, useContext, useState, type ReactNode, useEffect, useCallback } from 'react';
+
+// Define a simpler user type for our hardcoded scenario
+interface AppUser {
+  uid: string;
+  email: string;
+  // Add any other user properties you might need from a real User object
+}
 
 interface AuthContextType {
-  user: User | null;
-  claims: Record<string, any> | null; // Simplified claims type
+  user: AppUser | null;
   isAdmin: boolean;
   loading: boolean;
+  login: (userData: { uid: string; email: string; isAdmin?: boolean }) => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Create a mock admin user object that matches the Firebase User structure sufficiently
-const mockAdminUser = {
-  uid: 'hardcoded-admin-uid',
-  email: 'admin@example.com',
-  emailVerified: true,
-  displayName: 'Admin User',
-  isAnonymous: false,
-  photoURL: null,
-  providerData: [],
-  metadata: {}, // Add other necessary User properties with mock data
-  providerId: 'password', // Mock providerId
-  // Mock Firebase User methods - these won't be called but satisfy the type
-  getIdToken: async () => 'mock-id-token',
-  getIdTokenResult: async () => ({
-    token: 'mock-id-token',
-    expirationTime: '',
-    authTime: '',
-    issuedAtTime: '',
-    signInProvider: null,
-    signInSecondFactor: null,
-    claims: { admin: true },
-  }),
-  reload: async () => {},
-  delete: async () => {},
-  toJSON: () => ({}),
-} as User;
-
+const HARDCODED_ADMIN_EMAIL = 'admin@example.com';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // State is now static for the hardcoded admin
-  const [user, setUser] = useState<User | null>(mockAdminUser);
-  const [claims, setClaims] = useState<Record<string, any> | null>({ admin: true });
-  const [isAdmin, setIsAdmin] = useState<boolean>(true);
-  const [loading, setLoading] = useState<boolean>(false); // Start as false, no async auth check
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true); // Start as true to check for persisted session
 
+  // Simulate checking for a persisted session on initial load (e.g., from localStorage)
   useEffect(() => {
-    // Simulate that authentication is immediately resolved
-    console.log('[AuthContext] Hardcoded admin user initialized.');
-    setUser(mockAdminUser);
-    setClaims({ admin: true });
-    setIsAdmin(true);
+    console.log('[AuthContext] Initializing, checking for persisted session.');
+    const storedUser = localStorage.getItem('loggedInUser');
+    if (storedUser) {
+      try {
+        const parsedUser: AppUser = JSON.parse(storedUser);
+        if (parsedUser && parsedUser.email) {
+            console.log('[AuthContext] Found persisted user:', parsedUser.email);
+            setUser(parsedUser);
+            if (parsedUser.email.toLowerCase() === HARDCODED_ADMIN_EMAIL.toLowerCase()) {
+                console.log('[AuthContext] Persisted user is admin.');
+                setIsAdmin(true);
+            }
+        }
+      } catch (e) {
+        console.error('[AuthContext] Error parsing stored user:', e);
+        localStorage.removeItem('loggedInUser');
+      }
+    }
     setLoading(false);
   }, []);
 
+  const login = useCallback((userData: { uid: string; email: string; isAdmin?: boolean }) => {
+    console.log('[AuthContext] login function called for:', userData.email);
+    const appUser: AppUser = { uid: userData.uid, email: userData.email };
+    setUser(appUser);
+    localStorage.setItem('loggedInUser', JSON.stringify(appUser));
 
-  // Initial loading screen can be removed or simplified as auth is immediate
-  // if (loading && user === null) { ... }
+    if (userData.email.toLowerCase() === HARDCODED_ADMIN_EMAIL.toLowerCase()) {
+      console.log('[AuthContext] User is hardcoded admin. Setting isAdmin = true.');
+      setIsAdmin(true);
+    } else {
+      setIsAdmin(false); // Ensure isAdmin is false for non-admin users
+    }
+    setLoading(false); // Ensure loading is false after login attempt
+  }, []);
 
-  console.log('[AuthContext] Rendering Provider with hardcoded values: user.email=', user?.email, 'isAdmin=', isAdmin, 'loading=', loading);
-  return <AuthContext.Provider value={{ user, claims, isAdmin, loading }}>{children}</AuthContext.Provider>;
+  const logout = useCallback(() => {
+    console.log('[AuthContext] logout function called.');
+    setUser(null);
+    setIsAdmin(false);
+    localStorage.removeItem('loggedInUser');
+    setLoading(false); // Ensure loading is false
+     // Optionally, redirect to login page using window.location or a router instance if available here
+    // For now, components will handle redirection based on user state.
+  }, []);
+  
+  console.log('[AuthContext] Rendering Provider. User:', user?.email, 'IsAdmin:', isAdmin, 'Loading:', loading);
+
+  return (
+    <AuthContext.Provider value={{ user, isAdmin, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
@@ -72,7 +89,5 @@ export function useAuth() {
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  // Log what useAuth returns to help diagnose consuming components
-  // console.log('[useAuth] Returning context:', context);
   return context;
 }

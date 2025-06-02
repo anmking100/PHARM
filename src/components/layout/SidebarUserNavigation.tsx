@@ -4,27 +4,34 @@
 import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
 import { SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-// useAuth removed
-// import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 
 export function SidebarUserNavigation() {
-  // const { user, isAdmin, loading, claims } = useAuth(); // Removed useAuth
+  const { user, isAdmin, loading } = useAuth();
   const pathname = usePathname();
 
-  // console.log('[SidebarUserNavigation] Render cycle (hardcoded admin).'); // Simplified log
+  console.log('[SidebarUserNavigation] Render. User:', user?.email, 'IsAdmin:', isAdmin, 'Loading:', loading);
 
-  // All checks for loading, user, isAdmin are removed as admin access is assumed.
-  
-  console.log('[SidebarUserNavigation] Hardcoded admin: Rendering Admin Panel link.');
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>
-        <Link href="/admin">
-          <ShieldCheck />
-          <span>Admin Panel</span>
-        </Link>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  );
+  if (loading) {
+    // Optionally, render a skeleton or nothing while loading
+    return null; 
+  }
+
+  if (user && isAdmin) {
+    console.log('[SidebarUserNavigation] User is admin. Rendering Admin Panel link.');
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>
+          <Link href="/admin">
+            <ShieldCheck />
+            <span>Admin Panel</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  console.log('[SidebarUserNavigation] User is not admin or not logged in. Not rendering Admin Panel link.');
+  return null; // No admin link if not admin or not logged in
 }

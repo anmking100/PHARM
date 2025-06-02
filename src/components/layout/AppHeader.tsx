@@ -2,45 +2,79 @@
 'use client';
 
 import Link from 'next/link';
-// useRouter removed as logout is removed
-// import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
-import { Settings2, PanelLeft } from 'lucide-react'; // LogIn, LogOut, UserCircle removed
-// useAuth and signOutUser removed
-// import { useAuth } from '@/context/AuthContext';
-// import { signOutUser } from '@/app/login/actions';
-// useToast removed
-// import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton'; // Kept for consistency if loading state was ever re-added elsewhere
+import { Settings2, PanelLeft, LogIn, LogOut, UserCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { signOutUser } from '@/app/login/actions'; // We'll use this for the logout action
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function AppHeader() {
-  // const { user, loading } = useAuth(); // Removed useAuth
-  // const router = useRouter(); // Removed
-  // const { toast } = useToast(); // Removed
+  const { user, isAdmin, logout, loading } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
 
-  // handleLogout function removed
+  const handleLogout = async () => {
+    try {
+      await signOutUser(); // Call the server action
+      logout(); // Update client-side AuthContext
+      toast({
+        title: 'Logged Out',
+        description: 'You have been successfully logged out.',
+      });
+      router.push('/login'); // Redirect to login page
+    } catch (error) {
+      console.error('Logout failed:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Logout Failed',
+        description: 'Could not log you out. Please try again.',
+      });
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* SidebarTrigger is now always visible as user is always "admin" */}
-          <SidebarTrigger />
+          {user && <SidebarTrigger />}
           <Link href="/" className="flex items-center gap-2 md:pl-2">
             <Logo />
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          {/* Removed loading and user checks, no login/logout buttons */}
-          <span className="text-sm text-muted-foreground hidden sm:inline">
-            Admin
-          </span>
-          <Button variant="ghost" size="icon" aria-label="Settings" disabled> {/* Settings page not implemented */}
-            <Settings2 className="h-5 w-5" />
-          </Button>
-          {/* Logout button removed */}
+          {loading ? (
+            <>
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-8 rounded-full" />
+            </>
+          ) : user ? (
+            <>
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                {isAdmin ? 'Admin' : user.email}
+              </span>
+               <Button variant="ghost" size="icon" aria-label="User Menu" disabled>
+                <UserCircle className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="Settings" disabled>
+                <Settings2 className="h-5 w-5" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="mr-1 h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
+            </>
+          ) : (
+            <Button asChild variant="default" size="sm">
+              <Link href="/login">
+                <LogIn className="mr-1 h-4 w-4 sm:mr-2" />
+                Login
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>
