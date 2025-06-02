@@ -8,7 +8,7 @@ import { onAuthStateChanged, type IdTokenResult } from 'firebase/auth';
 
 interface AuthContextType {
   user: User | null;
-  claims: IdTokenResult['claims'] | null;
+  claims: IdTokenResult['claims'] | null; // We'll still store claims for other potential uses
   isAdmin: boolean;
   loading: boolean;
 }
@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true); // Set loading to true at the start of auth state change
+      setLoading(true); 
       if (currentUser) {
         setUser(currentUser);
         const userEmail = currentUser.email;
@@ -39,22 +39,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isHardcodedAdmin) {
           console.log(`[AuthContext] User ${userEmail} IS the hardcoded admin. Setting isAdmin = true.`);
           setIsAdmin(true);
-          setClaims({ admin: true }); // Simulate admin claim
+          setClaims({ admin: true }); // Simulate admin claim for consistency if ever needed
         } else {
-          console.log(`[AuthContext] User ${userEmail} is NOT the hardcoded admin. Checking Firebase claims.`);
+          console.log(`[AuthContext] User ${userEmail} is NOT the hardcoded admin. Setting isAdmin = false. Other claims will be fetched if necessary but admin status is false.`);
+          setIsAdmin(false); // Explicitly set to false for non-hardcoded admin users
+          // Fetch other claims if needed for other functionalities, but isAdmin is determined above.
           try {
-            const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh
+            const idTokenResult = await currentUser.getIdTokenResult(true); 
             const userClaims = idTokenResult.claims;
-            console.log('[AuthContext] Firebase claims for user:', userEmail, userClaims);
-            setClaims(userClaims);
-            const hasAdminClaim = !!userClaims.admin;
-            setIsAdmin(hasAdminClaim);
-            console.log(`[AuthContext] User ${userEmail} Firebase admin claim check: isAdmin = ${hasAdminClaim}`);
+            console.log('[AuthContext] Firebase claims for non-admin user:', userEmail, userClaims);
+            setClaims(userClaims); // Store other claims
           } catch (error) {
-            console.error("[AuthContext] Error fetching user claims for:", userEmail, error);
+            console.error("[AuthContext] Error fetching user claims for non-admin user:", userEmail, error);
             setClaims(null);
-            setIsAdmin(false);
-            console.log(`[AuthContext] User ${userEmail} error fetching claims. Setting isAdmin = false.`);
           }
         }
       } else {
@@ -73,8 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // This loading screen is for the initial app load before auth state is determined.
-  // It should only show if loading is true AND user is null.
   if (loading && user === null) {
     console.log('[AuthContext] Displaying initial loading screen.');
     return (
@@ -88,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  console.log('[AuthContext] Rendering Provider with values: user.email=', user?.email, 'isAdmin=', isAdmin, 'loading=', loading);
+  console.log('[AuthContext] Rendering Provider with values: user.email=', user?.email, 'isAdmin=', isAdmin, 'loading=', loading, 'claims=', claims);
   return <AuthContext.Provider value={{ user, claims, isAdmin, loading }}>{children}</AuthContext.Provider>;
 }
 
