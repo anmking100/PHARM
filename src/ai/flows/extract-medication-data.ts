@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent that extracts medication data from fax images.
@@ -20,12 +21,12 @@ const ExtractMedicationDataInputSchema = z.object({
 export type ExtractMedicationDataInput = z.infer<typeof ExtractMedicationDataInputSchema>;
 
 const ExtractMedicationDataOutputSchema = z.object({
-  patientName: z.string().describe('The name of the patient.'),
-  medicationName: z.string().describe('The name of the medication.'),
-  dosage: z.string().describe('The dosage of the medication.'),
-  frequency: z.string().describe('The frequency of the medication.'),
-  prescribingDoctor: z.string().describe('The name of the prescribing doctor.'),
-  isHandwritten: z.boolean().describe('Whether the prescription is handwritten.'),
+  patientName: z.string().describe('The name of the patient.').optional().default(''),
+  medicationName: z.string().describe('The name of the medication.').optional().default(''),
+  dosage: z.string().describe('The dosage of the medication.').optional().default(''),
+  frequency: z.string().describe('The frequency of the medication.').optional().default(''),
+  prescribingDoctor: z.string().describe('The name of the prescribing doctor.').optional().default(''),
+  isHandwritten: z.boolean().describe('Whether the prescription is handwritten.').optional().default(false),
 });
 export type ExtractMedicationDataOutput = z.infer<typeof ExtractMedicationDataOutputSchema>;
 
@@ -66,7 +67,7 @@ const extractMedicationDataPrompt = ai.definePrompt({
 
   Here is the fax image: {{media url=faxDataUri}}
 
-  Return the extracted information in JSON format.
+  Return the extracted information in JSON format. If a field cannot be found, use an empty string for text fields or false for boolean fields.
   `,
 });
 
@@ -78,6 +79,20 @@ const extractMedicationDataFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await extractMedicationDataPrompt(input);
-    return output!;
+    if (!output) {
+      // If output is null or undefined, return a default object that matches the schema
+      // This ensures the flow always returns a valid ExtractMedicationDataOutput object.
+      console.error("AI prompt returned null output. Returning default structure.");
+      return {
+        patientName: '',
+        medicationName: '',
+        dosage: '',
+        frequency: '',
+        prescribingDoctor: '',
+        isHandwritten: false,
+      };
+    }
+    return output;
   }
 );
+
