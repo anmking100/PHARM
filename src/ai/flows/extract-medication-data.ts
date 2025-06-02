@@ -98,7 +98,9 @@ const extractMedicationDataFlow = ai.defineFlow(
         parsedAt: currentTimestamp,
       };
     }
-    // Ensure parsedAt is always set, even if AI misses it.
-    return {...output, status: output.status || 'pending_review', parsedAt: output.parsedAt || currentTimestamp };
+    // Ensure parsedAt is always set to the server-generated currentTimestamp for schema compliance,
+    // and status defaults to 'pending_review' if not provided by AI.
+    return {...output, status: output.status || 'pending_review', parsedAt: currentTimestamp };
   }
 );
+
