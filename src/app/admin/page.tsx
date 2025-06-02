@@ -1,29 +1,86 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useEffect, type FormEvent } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, Users, UserPlus, Settings, ShieldAlert, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ShieldCheck, Users, UserPlus, Settings, ShieldAlert, Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { createUserWithRole } from "./actions";
+import type { AppUser, UserRole, NewUserFormData } from "@/lib/types";
+
+const initialUsers: AppUser[] = [
+  { id: '1', email: 'admin@example.com', role: 'admin' },
+  { id: '2', email: 'pharmacist.jane@example.com', role: 'pharmacist' },
+  { id: '3', email: 'tech.joe@example.com', role: 'technician' },
+];
+
+const availableRoles: UserRole[] = ['admin', 'pharmacist', 'technician'];
 
 export default function AdminPage() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
+
+  const [users, setUsers] = useState<AppUser[]>(initialUsers);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+  
+  const [newUserForm, setNewUserForm] = useState<NewUserFormData & { password?: string }>({
+    email: '',
+    password: '',
+    role: 'technician',
+  });
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login?redirect=/admin'); 
     }
-    // Basic role check placeholder - replace with actual role logic
-    // For example, if using custom claims:
-    // if (!loading && user && !(user as any).customClaims?.admin) {
-    //  router.push('/unauthorized'); // Or show an unauthorized message
-    // }
-  }, [user, loading, router]);
+    // Add a proper admin role check here once custom claims are set up.
+    // For now, any logged-in user can access this page.
+  }, [user, authLoading, router]);
 
-  if (loading) {
+  const handleNewUserInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setNewUserForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleNewUserRoleChange = (value: UserRole) => {
+    setNewUserForm(prev => ({ ...prev, role: value }));
+  };
+
+  const handleCreateUserSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newUserForm.email || !newUserForm.password || !newUserForm.role) {
+      toast({ variant: "destructive", title: "Missing Fields", description: "Please fill in all fields." });
+      return;
+    }
+    setIsSubmittingUser(true);
+    try {
+      const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
+      if (result.success && result.userId) {
+        setUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: newUserForm.email, role: newUserForm.role }]);
+        toast({ title: "User Created", description: result.message });
+        setIsCreateUserDialogOpen(false);
+        setNewUserForm({ email: '', password: '', role: 'technician' }); // Reset form
+      } else {
+        toast({ variant: "destructive", title: "Creation Failed", description: result.message });
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Could not create user." });
+    } finally {
+      setIsSubmittingUser(false);
+    }
+  };
+
+  if (authLoading) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
             <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
@@ -33,7 +90,6 @@ export default function AdminPage() {
   }
   
   if (!user) {
-    // This case should ideally be handled by the redirect, but as a fallback:
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
@@ -42,10 +98,8 @@ export default function AdminPage() {
     );
   }
   
-  // Placeholder for role check. In a real app, you'd check if user.role === 'admin'
-  // For now, any logged-in user can see this page.
-  // const isUserAdmin = (user as any).customClaims?.admin === true; // Example
-  const isUserAdmin = true; // TEMPORARY: Assume user is admin for UI display
+  // Placeholder for role check.
+  const isUserAdmin = true; // Assume admin for now. Replace with actual check: (user as any).customClaims?.admin === true;
 
   if (!isUserAdmin) {
      return (
@@ -72,27 +126,116 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="shadow-lg hover:shadow-xl transition-shadow">
-          <CardHeader>
+      <Card className="shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
               User Management
             </CardTitle>
-            <CardDescription>View, add, edit, and remove users. Assign roles and permissions.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Full user management capabilities including role assignments will be implemented here. This requires backend setup with Firebase Admin SDK.
-            </p>
-            <Button disabled className="w-full">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Manage Users (Coming Soon)
-            </Button>
-          </CardContent>
-        </Card>
+            <CardDescription>View, add, and manage user roles. Current user list is mock data.</CardDescription>
+          </div>
+          <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" /> Create New User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" />Create New User
+                </DialogTitle>
+                <DialogDescription>
+                  Fill in the details to add a new user and assign them a role.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateUserSubmit}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="email" className="text-right">
+                      Email
+                    </Label>
+                    <Input id="email" name="email" type="email" value={newUserForm.email} onChange={handleNewUserInputChange} className="col-span-3" placeholder="user@example.com" required disabled={isSubmittingUser} />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="password" className="text-right">
+                      Password
+                    </Label>
+                    <Input id="password" name="password" type="password" value={newUserForm.password} onChange={handleNewUserInputChange} className="col-span-3" placeholder="••••••••" required disabled={isSubmittingUser}/>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="role" className="text-right">
+                      Role
+                    </Label>
+                    <Select name="role" value={newUserForm.role} onValueChange={handleNewUserRoleChange} disabled={isSubmittingUser}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRoles.map(role => (
+                          <SelectItem key={role} value={role} className="capitalize">{role}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                     <Button type="button" variant="outline" disabled={isSubmittingUser}>Cancel</Button>
+                  </DialogClose>
+                  <Button type="submit" disabled={isSubmittingUser}>
+                    {isSubmittingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                    {isSubmittingUser ? 'Creating...' : 'Create User'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground">
+                    No users found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                users.map((appUser) => (
+                  <TableRow key={appUser.id}>
+                    <TableCell className="font-medium">{appUser.email}</TableCell>
+                    <TableCell className="capitalize">{appUser.role}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button variant="outline" size="sm" disabled> {/* Placeholder for actual edit */}
+                        <Edit className="mr-1 h-3 w-3" /> Edit Role
+                      </Button>
+                       <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled> {/* Placeholder */}
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+         <CardFooter>
+          <p className="text-xs text-muted-foreground">
+            Note: User creation and role assignment are conceptual and use mock data. Full implementation requires backend Firebase Admin SDK setup.
+          </p>
+        </CardFooter>
+      </Card>
 
-        <Card className="shadow-lg hover:shadow-xl transition-shadow opacity-60 cursor-not-allowed">
+      <Card className="shadow-lg hover:shadow-xl transition-shadow opacity-60 cursor-not-allowed">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-primary" />
@@ -110,25 +253,29 @@ export default function AdminPage() {
             </Button>
           </CardContent>
         </Card>
-      </div>
 
        <div className="mt-8 p-6 bg-card border rounded-lg shadow-sm">
         <h3 className="text-lg font-semibold mb-3 text-primary flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Next Steps & Considerations:</h3>
         <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2">
             <li>
-              <strong>User Roles:</strong> Define specific roles (e.g., 'admin', 'pharmacist', 'technician'). This typically involves using Firebase Custom Claims, set via the Firebase Admin SDK on a secure backend.
+              <strong>Secure User Creation:</strong> Implement actual user creation and role assignment using Firebase Admin SDK in a secure backend environment (e.g., Firebase Callable Function or a Next.js API route protected for admins). The current `createUserWithRole` server action is conceptual.
             </li>
             <li>
-              <strong>User Creation by Admin:</strong> Implement a secure backend function (e.g., Firebase Callable Function or a Next.js API route protected for admins) that allows admins to create new users and assign them roles.
+              <strong>Role & Permission Management:</strong>
+                <ul>
+                    <li>Define roles (e.g., 'admin', 'pharmacist') and associated permissions.</li>
+                    <li>Store roles/permissions in Firestore and link them to users, or use Firebase Custom Claims.</li>
+                    <li>Implement UI for editing roles/permissions (the "Edit Role" button is a placeholder).</li>
+                </ul>
             </li>
             <li>
-              <strong>Role Storage:</strong> Decide if roles need to be stored/managed in Firestore in addition to custom claims, especially if roles have associated permissions or metadata.
+              <strong>Fetch Real Users:</strong> Replace mock user data with actual users fetched from Firebase Authentication (requires Admin SDK for full list or careful client-side management for limited views).
             </li>
             <li>
-              <strong>UI for Management:</strong> Build out the UI for listing users, editing their details/roles, and inviting/adding new users.
+              <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control once roles are implemented.
             </li>
             <li>
-              <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control.
+              <strong>Admin Role Check:</strong> Replace `const isUserAdmin = true;` with a proper check of the logged-in user's custom claims once they are set up (e.g., `(user as any).customClaims?.admin === true`).
             </li>
         </ul>
       </div>
