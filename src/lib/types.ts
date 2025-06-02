@@ -3,7 +3,7 @@ import type { ExtractMedicationDataOutput } from '@/ai/flows/extract-medication-
 
 export type UserRole = 'admin' | 'pharmacist' | 'technician' | 'unassigned';
 
-export type MedicationStatus = 'pending_extraction' | 'pending_review' | 'reviewed' | 'packed';
+export type MedicationStatus = 'pending_extraction' | 'pending_review' | 'reviewed' | 'approved' | 'packed';
 
 // Add an optional id field to MedicationData, which can be used as a key in lists
 // and potentially for identifying records in a more complex store.
@@ -40,3 +40,4 @@ export interface ConceptualUser extends NewUserFormData {
   isSystemUser?: boolean; // Flag to identify if the user is from the hardcoded list
   // email, role, password, canUploadDocs, canReviewDocs, canApproveMedication are inherited
 }
+

@@ -1,23 +1,25 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Users, AlertTriangle, Info, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Users, AlertTriangle, Info, Clock, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
 import type { MedicationData, MedicationStatus } from '@/lib/types';
-import { getAllPatientRecords } from '@/lib/patient-data';
+import { getAllPatientRecords, upsertPatientRecord } from '@/lib/patient-data';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 const statusDisplay: Record<MedicationStatus, string> = {
   pending_extraction: "Pending Extraction",
   pending_review: "Pending Review",
   reviewed: "Reviewed",
+  approved: "Approved",
   packed: "Packed",
 };
 
@@ -25,6 +27,7 @@ const getStatusBadgeVariant = (status?: MedicationStatus) => {
   switch (status) {
     case 'pending_review': return 'destructive';
     case 'reviewed': return 'secondary';
+    case 'approved': return 'default'; // Similar to packed for positive indication
     case 'packed': return 'default'; 
     default: return 'outline';
   }
@@ -38,49 +41,53 @@ interface GroupedPatientData {
 export default function PatientsPage() {
   const { user, loading: authLoading, isAdmin, isPharmacist } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [groupedPatientData, setGroupedPatientData] = useState<GroupedPatientData[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [expandedPatients, setExpandedPatients] = useState<Set<string>>(new Set());
 
-  const canViewPage = isAdmin || isPharmacist;
+  const canViewPage = isAdmin || isPharmacist; // Also implies can approve
+
+  const fetchAndProcessRecords = useCallback(() => {
+    setIsLoadingRecords(true);
+    const allRecords = getAllPatientRecords();
+    const relevantRecords = allRecords.filter(r => r.status === 'reviewed' || r.status === 'approved' || r.status === 'packed');
+
+    const groupedByName = relevantRecords.reduce<Record<string, MedicationData[]>>((acc, record) => {
+      const name = record.patientName || 'Unknown Patient';
+      if (!acc[name]) {
+        acc[name] = [];
+      }
+      acc[name].push(record);
+      return acc;
+    }, {});
+
+    const processedData = Object.entries(groupedByName).map(([name, recordsList]) => {
+      const sortedRecords = recordsList.sort((a, b) => {
+        const dateA = a.parsedAt ? new Date(a.parsedAt).getTime() : 0;
+        const dateB = b.parsedAt ? new Date(b.parsedAt).getTime() : 0;
+        return dateB - dateA; // Sort descending, newest first
+      });
+      return {
+        patientName: name,
+        records: sortedRecords,
+      };
+    });
+    
+    processedData.sort((a,b) => a.patientName.localeCompare(b.patientName));
+    setGroupedPatientData(processedData);
+    setIsLoadingRecords(false);
+  }, []);
 
   useEffect(() => {
     if (!authLoading) {
       if (!user || !canViewPage) {
         router.replace('/login?redirect=/patients');
       } else {
-        const allRecords = getAllPatientRecords();
-        const relevantRecords = allRecords.filter(r => r.status === 'reviewed' || r.status === 'packed');
-
-        const groupedByName = relevantRecords.reduce<Record<string, MedicationData[]>>((acc, record) => {
-          const name = record.patientName || 'Unknown Patient';
-          if (!acc[name]) {
-            acc[name] = [];
-          }
-          acc[name].push(record);
-          return acc;
-        }, {});
-
-        const processedData = Object.entries(groupedByName).map(([name, recordsList]) => {
-          const sortedRecords = recordsList.sort((a, b) => {
-            const dateA = a.parsedAt ? new Date(a.parsedAt).getTime() : 0;
-            const dateB = b.parsedAt ? new Date(b.parsedAt).getTime() : 0;
-            return dateB - dateA; // Sort descending, newest first
-          });
-          return {
-            patientName: name,
-            records: sortedRecords,
-          };
-        });
-        
-        // Sort patients alphabetically by name for consistent order in the main list
-        processedData.sort((a,b) => a.patientName.localeCompare(b.patientName));
-
-        setGroupedPatientData(processedData);
-        setIsLoadingRecords(false);
+        fetchAndProcessRecords();
       }
     }
-  }, [user, authLoading, isAdmin, isPharmacist, router, canViewPage]);
+  }, [user, authLoading, isAdmin, isPharmacist, router, canViewPage, fetchAndProcessRecords]);
 
   const togglePatientExpansion = (patientName: string) => {
     setExpandedPatients(prev => {
@@ -94,7 +101,21 @@ export default function PatientsPage() {
     });
   };
 
-  if (authLoading || isLoadingRecords) {
+  const handleApproveRecord = (recordToApprove: MedicationData) => {
+    if (!recordToApprove || !recordToApprove.id || !canViewPage) return;
+
+    const updatedRecord = { ...recordToApprove, status: 'approved' as MedicationStatus };
+    upsertPatientRecord(updatedRecord);
+    toast({
+      title: "Prescription Approved",
+      description: `${recordToApprove.medicationName} for ${recordToApprove.patientName} marked as approved.`,
+    });
+    // Refresh data to show updated status
+    fetchAndProcessRecords();
+  };
+
+
+  if (authLoading || (isLoadingRecords && canViewPage)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -138,7 +159,7 @@ export default function PatientsPage() {
         <CardHeader>
           <CardTitle>Prescription List</CardTitle>
           <CardDescription>
-            The table shows the most recent reviewed or packed record per patient.
+            The table shows the most recent reviewed, approved, or packed record per patient.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -153,13 +174,14 @@ export default function PatientsPage() {
                   Parsed At
                 </TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {groupedPatientData.length === 0 && !isLoadingRecords ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    No reviewed or packed patient records found. Process prescriptions on the home page.
+                  <TableCell colSpan={6} className="h-24 text-center">
+                    No reviewed, approved, or packed patient records found. Process prescriptions on the home page.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -195,36 +217,62 @@ export default function PatientsPage() {
                             </Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {canViewPage && mostRecentRecord?.status === 'reviewed' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleApproveRecord(mostRecentRecord)}
+                            >
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Approve
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
 
                       {isExpanded && (
                         <TableRow>
-                          <TableCell colSpan={5} className="p-0">
+                          <TableCell colSpan={6} className="p-0">
                             <div className="bg-muted/20 p-2 border-l-4 border-accent">
                               <Table>
                                 <TableBody>
                                   {records.slice(1).map((record, index) => (
                                     <TableRow key={record.id || `${patientName}-hist-${index}`} className="hover:bg-muted/40">
                                       <TableCell className="w-[25%] pl-6 text-xs text-muted-foreground">
-                                        {/* Intentionally left blank or could show date again */}
+                                        {/* Intentionally left blank */}
                                       </TableCell>
-                                      <TableCell className="w-[20%] text-xs">{record.medicationName || 'N/A'}</TableCell>
-                                      <TableCell className="w-[15%] text-xs">{record.dosage || 'N/A'}</TableCell>
-                                      <TableCell className="w-[20%] text-xs">
+                                      <TableCell className="w-[18%] text-xs">{record.medicationName || 'N/A'}</TableCell>
+                                      <TableCell className="w-[14%] text-xs">{record.dosage || 'N/A'}</TableCell>
+                                      <TableCell className="w-[18%] text-xs">
                                         {record.parsedAt ? format(new Date(record.parsedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
                                       </TableCell>
-                                      <TableCell className="w-[20%]">
+                                      <TableCell className="w-[15%]">
                                         {record.status && (
                                           <Badge variant={getStatusBadgeVariant(record.status)} className="text-xs px-1.5 py-0.5">
                                             {statusDisplay[record.status] || 'Unknown'}
                                           </Badge>
                                         )}
                                       </TableCell>
+                                       <TableCell className="w-[10%]">
+                                          {/* Action cell for historical records - can add approve button here too if needed */}
+                                          {canViewPage && record.status === 'reviewed' && (
+                                            <Button
+                                              variant="outline"
+                                              size="xs" // Smaller button for historical records
+                                              onClick={() => handleApproveRecord(record)}
+                                              className="text-xs p-1 h-auto"
+                                            >
+                                              <CheckCircle className="mr-1 h-3 w-3" />
+                                              Approve
+                                            </Button>
+                                          )}
+                                       </TableCell>
                                     </TableRow>
                                   ))}
                                   {records.length === 1 && (
                                      <TableRow>
-                                      <TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-2">
+                                      <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-2">
                                         No other historical records for this patient.
                                       </TableCell>
                                     </TableRow>

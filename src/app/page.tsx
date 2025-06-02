@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import FaxUploadForm from '@/components/medication/FaxUploadForm';
 import FaxDisplay from '@/components/medication/FaxDisplay';
@@ -32,11 +32,16 @@ export default function HomePage() {
   const canUploadAndEdit = isPharmacist || isAdmin;
   const canMarkAsPacked = isTechnician;
 
-  useEffect(() => {
+  const performRedirect = useCallback(() => {
     if (!authLoading && !user) {
       router.push('/login?redirect=/');
     }
-  }, [user, authLoading, router]);
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    performRedirect();
+  }, [performRedirect]);
+
 
   const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -112,16 +117,15 @@ export default function HomePage() {
           toastTitle = "AI Service Overloaded";
           userFriendlyMessage = "The AI model is currently overloaded or unavailable. Please try again in a few moments.";
         } else {
-          // For other errors, use a generic message or the specific one if it's not too technical
           userFriendlyMessage = "Could not extract data from fax. Please check the console for details or try again.";
-           if (!lowerCaseMessage.includes("fetch")) { // Avoid overly technical "fetch" errors
+           if (!lowerCaseMessage.includes("fetch")) { 
              userFriendlyMessage = e.message;
            }
         }
       }
 
       setError(`Failed to process fax: ${userFriendlyMessage}`);
-      setExtractedData(null); // Ensure no stale data is shown
+      setExtractedData(null); 
       toast({
         variant: "destructive",
         title: toastTitle,
@@ -168,10 +172,18 @@ export default function HomePage() {
       return;
     }
     if (!extractedData) return;
-    if (isTechnician && extractedData.status !== 'reviewed') {
-      toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed by a pharmacist before it can be packed."});
+    // Technicians can pack if reviewed or approved. Pharmacists/Admins have broader rights implicitly.
+    if (isTechnician && (extractedData.status !== 'reviewed' && extractedData.status !== 'approved')) {
+      toast({variant: "destructive", title: "Action Not Allowed", description: "Prescription must be reviewed or approved by a pharmacist before it can be packed."});
       return;
     }
+     if ((isAdmin || isPharmacist) && (extractedData.status !== 'reviewed' && extractedData.status !== 'approved' && extractedData.status !== 'pending_review')) {
+      // Pharmacist/admin can pack from pending_review, reviewed, or approved.
+      // If status is somehow 'packed' already or 'pending_extraction', this is an edge case, but let's allow packing from those key states.
+      // This condition primarily ensures it's not something like 'pending_extraction' by mistake IF more states were added.
+      // For now, the main check for pharmacist/admin is that data exists and they have the role.
+    }
+
 
     const dataToUpdate = { ...extractedData, status: 'packed' as MedicationStatus };
     const updatedData = upsertPatientRecord(dataToUpdate);
@@ -193,7 +205,7 @@ export default function HomePage() {
     );
   }
 
-  if (!user && !authLoading) {
+  if (!user && !authLoading) { // Check after authLoading is false
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
          <Card className="w-full max-w-md">
@@ -235,7 +247,7 @@ export default function HomePage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Restricted View</AlertTitle>
               <AlertDescription>
-                {isTechnician ? "You are in technician view. You can view prescription details and mark them as packed once reviewed by a pharmacist." : "You do not have permission to upload or edit faxes."}
+                {isTechnician ? "You are in technician view. You can view prescription details and mark them as packed once reviewed or approved by a pharmacist." : "You do not have permission to upload or edit faxes."}
               </AlertDescription>
             </Alert>
           )}
@@ -269,3 +281,4 @@ export default function HomePage() {
     </div>
   );
 }
+
