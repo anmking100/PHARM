@@ -2,35 +2,43 @@
 'use client';
 
 import Link from 'next/link';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Users } from 'lucide-react'; // Added Users icon
 import { SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 
 export function SidebarUserNavigation() {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, isPharmacist, loading } = useAuth();
   const pathname = usePathname();
-
-  console.log('[SidebarUserNavigation] Render. User:', user?.email, 'IsAdmin:', isAdmin, 'Loading:', loading);
 
   if (loading) {
     return null; 
   }
 
-  if (user && isAdmin) {
-    console.log('[SidebarUserNavigation] Admin is logged in. Rendering Admin Panel link.');
-    return (
-      <SidebarMenuItem>
-        <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>
-          <Link href="/admin">
-            <ShieldCheck />
-            <span>Admin Panel</span>
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    );
-  }
+  const canSeePatientsLink = isAdmin || isPharmacist;
 
-  console.log('[SidebarUserNavigation] User not admin or not logged in. Not rendering Admin Panel link.');
-  return null;
+  return (
+    <>
+      {user && canSeePatientsLink && (
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="Patient Records" isActive={pathname === '/patients'}>
+            <Link href="/patients">
+              <Users />
+              <span>Patients</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )}
+      {user && isAdmin && (
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="Admin Panel" isActive={pathname === '/admin'}>
+            <Link href="/admin">
+              <ShieldCheck />
+              <span>Admin Panel</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )}
+    </>
+  );
 }

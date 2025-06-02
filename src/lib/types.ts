@@ -5,7 +5,10 @@ export type UserRole = 'admin' | 'pharmacist' | 'technician' | 'unassigned';
 
 export type MedicationStatus = 'pending_extraction' | 'pending_review' | 'reviewed' | 'packed';
 
+// Add an optional id field to MedicationData, which can be used as a key in lists
+// and potentially for identifying records in a more complex store.
 export interface MedicationData extends ExtractMedicationDataOutput {
+  id?: string; // Optional unique identifier for the record
   status?: MedicationStatus;
 }
 

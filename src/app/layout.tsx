@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -6,7 +7,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
 import { Logo } from '@/components/icons/Logo';
 import Link from 'next/link';
-import { Home, ShieldCheck } from 'lucide-react';
+import { Home } from 'lucide-react'; // Removed ShieldCheck as admin link is handled by SidebarUserNavigation
 import { SidebarUserNavigation } from '@/components/layout/SidebarUserNavigation';
 
 
@@ -46,7 +47,7 @@ export default function RootLayout({
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {/* SidebarUserNavigation will handle admin link visibility based on auth state */}
+                  {/* SidebarUserNavigation will handle Patients and Admin link visibility */}
                   <SidebarUserNavigation />
                 </SidebarMenu>
               </SidebarContent>

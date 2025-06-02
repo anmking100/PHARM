@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { addPatientRecord } from '@/lib/patient-data';
 
 
 export default function HomePage() {
@@ -128,10 +129,11 @@ export default function HomePage() {
 
     const updatedData = { ...extractedData, status: 'reviewed' as MedicationStatus };
     setExtractedData(updatedData);
-    console.log("Saving changes (conceptual):", updatedData);
+    addPatientRecord(updatedData); // Add to our conceptual patient data store
+    console.log("Saving changes (conceptual) and adding to patient records:", updatedData);
     toast({
-      title: "Changes Saved (Conceptual)",
-      description: "Medication data changes logged. Status: Reviewed.",
+      title: "Changes Saved",
+      description: "Medication data saved and marked as reviewed. View in Patients page.",
     });
   };
   
@@ -142,8 +144,16 @@ export default function HomePage() {
     }
     if (!extractedData) return;
 
+    // Note: If technician marks as packed, this specific instance on HomePage is updated.
+    // The patient record in localStorage (if already added by pharmacist) would ideally be updated too.
+    // For now, we're keeping it simple: technician updates local state. Patient page shows what was "reviewed".
     const updatedData = { ...extractedData, status: 'packed' as MedicationStatus };
     setExtractedData(updatedData);
+
+    // If we want the "packed" status to reflect in the patient records as well, we'd need a way to update existing records.
+    // addPatientRecord({ ...updatedData }); // This would add a new record if ID logic isn't robust.
+    // For now, let's assume the "reviewed" version is what's primarily stored and packing is a final state update visible here.
+
     console.log("Marked as packed (conceptual):", updatedData);
     toast({
       title: "Marked as Packed (Conceptual)",
