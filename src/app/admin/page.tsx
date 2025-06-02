@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogTrigger, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ShieldCheck, Users, UserPlus, Settings, Loader2, Edit, Trash2, PlusCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -105,7 +105,7 @@ export default function AdminPage() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading && (!authUser || !isAdmin)) {
     console.log('[AdminPage] Auth loading, showing spinner.');
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -274,3 +274,5 @@ export default function AdminPage() {
   );
 }
 
+
+    
