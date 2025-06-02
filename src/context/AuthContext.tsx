@@ -25,41 +25,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[AuthContext] Setting up onAuthStateChanged listener.');
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true); // Set loading to true at the start of auth state change
       if (currentUser) {
         setUser(currentUser);
-        console.log('[AuthContext] Current user:', currentUser.email);
+        const userEmail = currentUser.email;
+        console.log('[AuthContext] onAuthStateChanged - User detected:', userEmail);
 
-        // Check for hardcoded admin email
-        if (currentUser.email === HARDCODED_ADMIN_EMAIL) {
-          console.log('[AuthContext] Hardcoded admin user recognized:', currentUser.email);
+        // Normalize emails for comparison
+        const isHardcodedAdmin = userEmail?.toLowerCase() === HARDCODED_ADMIN_EMAIL.toLowerCase();
+
+        if (isHardcodedAdmin) {
+          console.log(`[AuthContext] User ${userEmail} IS the hardcoded admin. Setting isAdmin = true.`);
           setIsAdmin(true);
-          setClaims({ admin: true }); // Simulate admin claim for consistency
+          setClaims({ admin: true }); // Simulate admin claim
         } else {
-          // Proceed with custom claims check for other users
+          console.log(`[AuthContext] User ${userEmail} is NOT the hardcoded admin. Checking Firebase claims.`);
           try {
-            const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh to get latest claims
-            setClaims(idTokenResult.claims);
-            setIsAdmin(!!idTokenResult.claims.admin); // Check for 'admin: true' claim
-            console.log('[AuthContext] User claims fetched:', idTokenResult.claims);
+            const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh
+            const userClaims = idTokenResult.claims;
+            console.log('[AuthContext] Firebase claims for user:', userEmail, userClaims);
+            setClaims(userClaims);
+            const hasAdminClaim = !!userClaims.admin;
+            setIsAdmin(hasAdminClaim);
+            console.log(`[AuthContext] User ${userEmail} Firebase admin claim check: isAdmin = ${hasAdminClaim}`);
           } catch (error) {
-            console.error("[AuthContext] Error fetching user claims:", error);
+            console.error("[AuthContext] Error fetching user claims for:", userEmail, error);
             setClaims(null);
             setIsAdmin(false);
+            console.log(`[AuthContext] User ${userEmail} error fetching claims. Setting isAdmin = false.`);
           }
         }
       } else {
+        console.log('[AuthContext] onAuthStateChanged - No user logged in.');
         setUser(null);
         setClaims(null);
         setIsAdmin(false);
-        console.log('[AuthContext] No user logged in.');
+        console.log('[AuthContext] No user state: isAdmin = false, claims = null.');
       }
       setLoading(false);
+      console.log('[AuthContext] Auth state processing complete. Loading set to false.');
     });
-    return () => unsubscribe();
+    return () => {
+      console.log('[AuthContext] Cleaning up onAuthStateChanged listener.');
+      unsubscribe();
+    }
   }, []);
 
-  if (loading && !user) { // Show loader only on initial app load when user state is unknown
+  // This loading screen is for the initial app load before auth state is determined.
+  // It should only show if loading is true AND user is null.
+  if (loading && user === null) {
+    console.log('[AuthContext] Displaying initial loading screen.');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <svg className="animate-spin h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -71,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  console.log('[AuthContext] Rendering Provider with values: user.email=', user?.email, 'isAdmin=', isAdmin, 'loading=', loading);
   return <AuthContext.Provider value={{ user, claims, isAdmin, loading }}>{children}</AuthContext.Provider>;
 }
 

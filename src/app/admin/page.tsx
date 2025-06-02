@@ -41,12 +41,17 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
+    console.log('[AdminPage] Auth state - authLoading:', authLoading, 'user:', user?.email, 'isAdmin:', isAdmin);
     if (!authLoading) {
       if (!user) {
+        console.log('[AdminPage] No user, redirecting to login.');
         router.push('/login?redirect=/admin'); 
       } else if (!isAdmin) {
+        console.log('[AdminPage] User is not admin, access denied will be shown.');
         // If user is logged in but not admin, redirect or show access denied
         // For now, we show access denied directly within the component.
+      } else {
+        console.log('[AdminPage] User is admin, proceeding to render dashboard.');
       }
     }
   }, [user, isAdmin, authLoading, router]);
@@ -68,15 +73,12 @@ export default function AdminPage() {
     }
     setIsSubmittingUser(true);
     try {
-      // IMPORTANT: This action is conceptual. True user creation with roles
-      // requires Firebase Admin SDK in a secure backend environment.
       const result = await createUserWithRole({ email: newUserForm.email, role: newUserForm.role }, newUserForm.password);
       if (result.success && result.userId) {
-        // In a real app, you'd fetch updated users list or rely on Firestore listeners
         setUsers(prevUsers => [...prevUsers, { id: result.userId as string, email: newUserForm.email, role: newUserForm.role }]);
         toast({ title: "User Created (Conceptual)", description: result.message });
         setIsCreateUserDialogOpen(false);
-        setNewUserForm({ email: '', password: '', role: 'technician' }); // Reset form
+        setNewUserForm({ email: '', password: '', role: 'technician' }); 
       } else {
         toast({ variant: "destructive", title: "Creation Failed", description: result.message });
       }
@@ -96,7 +98,8 @@ export default function AdminPage() {
     );
   }
   
-  if (!user) { // Should be caught by useEffect, but good as a safeguard
+  if (!user && !authLoading) { 
+     console.log('[AdminPage] Rendering redirect to login (user null, not loading).');
      return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
@@ -105,7 +108,8 @@ export default function AdminPage() {
     );
   }
   
-  if (!isAdmin) {
+  if (user && !isAdmin && !authLoading) {
+     console.log('[AdminPage] Rendering Access Denied (user present, not admin, not loading).');
      return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
          <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
@@ -118,6 +122,23 @@ export default function AdminPage() {
     );
   }
 
+  // If we reach here, user must be admin or something is still loading/in transition
+  if (!isAdmin && user) { // Final check before rendering admin content
+    console.log('[AdminPage] Fallback Access Denied just before render.');
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] text-center px-4">
+         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+        <p className="text-muted-foreground">You do not have the necessary permissions to view this page.</p>
+        <Button asChild className="mt-6">
+          <Link href="/">Go to Homepage</Link>
+        </Button>
+      </div>
+    );
+  }
+
+
+  console.log('[AdminPage] Rendering admin dashboard content.');
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -166,7 +187,7 @@ export default function AdminPage() {
                     <Label htmlFor="password" className="text-right">
                       Password
                     </Label>
-                    <Input id="password" name="password" type="password" value={newUserForm.password} onChange={handleNewNewUserInputChange} className="col-span-3" placeholder="••••••••" required disabled={isSubmittingUser}/>
+                    <Input id="password" name="password" type="password" value={newUserForm.password ?? ''} onChange={handleNewUserInputChange} className="col-span-3" placeholder="••••••••" required disabled={isSubmittingUser}/>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="role" className="text-right">
@@ -219,10 +240,10 @@ export default function AdminPage() {
                     <TableCell className="font-medium">{appUser.email}</TableCell>
                     <TableCell className="capitalize">{appUser.role}</TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="sm" disabled> {/* Placeholder for actual edit */}
+                      <Button variant="outline" size="sm" disabled> 
                         <Edit className="mr-1 h-3 w-3" /> Edit Role
                       </Button>
-                       <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled> {/* Placeholder */}
+                       <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled> 
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -279,7 +300,7 @@ export default function AdminPage() {
               <strong>Security Rules:</strong> Ensure Firestore/Storage security rules are set up to enforce role-based access control once roles are implemented.
             </li>
             <li>
-              <strong>Admin Role Check:</strong> The app now checks for `customClaims.admin === true` on the logged-in user. You'll need to set this claim for your admin users.
+              <strong>Admin Role Check:</strong> The app now checks for `admin@example.com` (hardcoded) or `customClaims.admin === true` on the logged-in user. For custom claims, you'll need to set this claim for your admin users.
             </li>
         </ul>
       </div>

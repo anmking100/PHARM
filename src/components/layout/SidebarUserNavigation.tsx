@@ -8,12 +8,15 @@ import { useAuth } from '@/context/AuthContext';
 import { usePathname } from 'next/navigation';
 
 export function SidebarUserNavigation() {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, claims } = useAuth(); // Added claims for logging
   const pathname = usePathname();
+
+  // Log the state from useAuth
+  console.log('[SidebarUserNavigation] State from useAuth - loading:', loading, 'user:', user?.email, 'isAdmin:', isAdmin, 'claims:', claims);
 
   if (loading) {
     console.log('[SidebarUserNavigation] Auth is loading. Not rendering admin link yet.');
-    return null; 
+    return null;
   }
 
   if (!user) {
@@ -21,8 +24,10 @@ export function SidebarUserNavigation() {
     return null;
   }
 
+  // Explicitly log the isAdmin value being checked
+  console.log('[SidebarUserNavigation] Checking isAdmin value:', isAdmin);
   if (!isAdmin) {
-    console.log('[SidebarUserNavigation] User is not admin. Not rendering admin link. Claims:', (user as any).claims); // Log claims if needed
+    console.log('[SidebarUserNavigation] User is not admin. Not rendering admin link. Current claims:', claims);
     return null;
   }
   
