@@ -15,6 +15,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Define the hardcoded admin email
+const HARDCODED_ADMIN_EMAIL = 'admin@example.com';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [claims, setClaims] = useState<IdTokenResult['claims'] | null>(null);
@@ -25,20 +28,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        try {
-          const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh to get latest claims
-          setClaims(idTokenResult.claims);
-          setIsAdmin(!!idTokenResult.claims.admin); // Check for 'admin: true' claim
-          console.log('User claims:', idTokenResult.claims);
-        } catch (error) {
-          console.error("Error fetching user claims:", error);
-          setClaims(null);
-          setIsAdmin(false);
+        console.log('[AuthContext] Current user:', currentUser.email);
+
+        // Check for hardcoded admin email
+        if (currentUser.email === HARDCODED_ADMIN_EMAIL) {
+          console.log('[AuthContext] Hardcoded admin user recognized:', currentUser.email);
+          setIsAdmin(true);
+          setClaims({ admin: true }); // Simulate admin claim for consistency
+        } else {
+          // Proceed with custom claims check for other users
+          try {
+            const idTokenResult = await currentUser.getIdTokenResult(true); // Force refresh to get latest claims
+            setClaims(idTokenResult.claims);
+            setIsAdmin(!!idTokenResult.claims.admin); // Check for 'admin: true' claim
+            console.log('[AuthContext] User claims fetched:', idTokenResult.claims);
+          } catch (error) {
+            console.error("[AuthContext] Error fetching user claims:", error);
+            setClaims(null);
+            setIsAdmin(false);
+          }
         }
       } else {
         setUser(null);
         setClaims(null);
         setIsAdmin(false);
+        console.log('[AuthContext] No user logged in.');
       }
       setLoading(false);
     });
