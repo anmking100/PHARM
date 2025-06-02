@@ -7,40 +7,30 @@ import { Logo } from '@/components/icons/Logo';
 import { Button } from '@/components/ui/button';
 import { Settings2, LogIn, LogOut, UserCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-// signOutUser action is no longer needed here as AuthContext handles logout
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 export default function AppHeader() {
-  const { user, isAdmin, logout, loading } = useAuth(); // user can be HardcodedAdminUser or FirebaseUser
+  const { user, isAdmin, logout, loading } = useAuth(); // user is now always the hardcoded admin if logged in
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleLogout = async () => {
-    try {
-      await logout(); // Call the logout from AuthContext
-      toast({
-        title: 'Logged Out',
-        description: 'You have been successfully logged out.',
-      });
-      router.push('/login'); // Redirect to login page
-    } catch (error) {
-      console.error('Logout failed:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Logout Failed',
-        description: 'Could not log you out. Please try again.',
-      });
-    }
+  const handleLogout = () => {
+    logout(); // Call the logout from AuthContext
+    toast({
+      title: 'Logged Out',
+      description: 'You have been successfully logged out.',
+    });
+    router.push('/login'); // Redirect to login page
   };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* Show sidebar trigger if any user is logged in (hardcoded or Firebase) */}
-          {user && <SidebarTrigger />}
+          {/* Show sidebar trigger if admin is "logged in" */}
+          {user && isAdmin && <SidebarTrigger />}
           <Link href="/" className="flex items-center gap-2 md:pl-2">
             <Logo />
           </Link>
@@ -51,14 +41,10 @@ export default function AppHeader() {
               <Skeleton className="h-8 w-20" />
               <Skeleton className="h-8 w-8 rounded-full" />
             </>
-          ) : user ? (
+          ) : user && isAdmin ? ( // Only admin can be "logged in"
             <>
               <span className="text-sm text-muted-foreground hidden sm:inline">
-                {user.email} {/* Works for both HardcodedAdminUser and FirebaseUser */}
-                {isAdmin && user.source === 'hardcoded' && ' (Admin)'}
-                {user.source === 'firebase' && user.customClaims?.admin && ' (Admin)'}
-                {user.source === 'firebase' && user.customClaims?.role && ` (${user.customClaims.role})`}
-
+                {user.email} (Admin)
               </span>
                <Button variant="ghost" size="icon" aria-label="User Menu" disabled>
                 <UserCircle className="h-5 w-5" />
@@ -75,7 +61,7 @@ export default function AppHeader() {
             <Button asChild variant="default" size="sm">
               <Link href="/login">
                 <LogIn className="mr-1 h-4 w-4 sm:mr-2" />
-                Login
+                Admin Login
               </Link>
             </Button>
           )}

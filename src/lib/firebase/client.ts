@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+// import { getAuth } from 'firebase/auth'; // getAuth is no longer needed for client-side auth
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,7 +11,7 @@ const firebaseConfig: FirebaseOptions = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
+// Initialize Firebase app instance
 let app;
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
@@ -19,6 +19,6 @@ if (!getApps().length) {
   app = getApp();
 }
 
-const auth = getAuth(app);
+// const auth = getAuth(app); // auth instance is removed
 
-export { app, auth };
+export { app }; // Only export app, auth is removed
